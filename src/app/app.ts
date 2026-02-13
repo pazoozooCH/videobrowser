@@ -1,12 +1,14 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { ToolbarComponent } from './components/toolbar/toolbar.component';
+import { FileTreeComponent } from './components/file-tree/file-tree.component';
+import { FileTreeService } from './services/file-tree.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [ToolbarComponent, FileTreeComponent],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
 })
 export class App {
-  protected readonly title = signal('filebrowser');
+  protected readonly fileTreeService = inject(FileTreeService);
 }

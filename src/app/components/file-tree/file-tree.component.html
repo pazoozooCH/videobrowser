@@ -1,0 +1,21 @@
+@for (node of nodes(); track node.entry.path) {
+  <div
+    class="tree-node"
+    [class.unencoded]="!node.entry.isEncoded"
+    [class.encoded]="node.entry.isEncoded"
+    [class.directory]="node.entry.isDirectory"
+    [style.padding-left]="getIndent(node)"
+    (click)="onNodeClick(node)"
+  >
+    <span class="arrow">{{ getArrow(node) }}</span>
+    <span class="icon">{{ getIcon(node) }}</span>
+    <span class="name">{{ node.entry.name }}</span>
+    @if (node.entry.isEncoded) {
+      <span class="physical-name">{{ node.entry.physicalName }}</span>
+    }
+  </div>
+
+  @if (node.isExpanded && node.children) {
+    <app-file-tree [nodes]="node.children" />
+  }
+}

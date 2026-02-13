@@ -1,0 +1,52 @@
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  cursor: default;
+  user-select: none;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.tree-node:hover {
+  background-color: #e8e8e8;
+}
+
+.tree-node.directory {
+  cursor: pointer;
+}
+
+.tree-node.unencoded {
+  background-color: #fffde0;
+}
+
+.tree-node.unencoded:hover {
+  background-color: #fff9b0;
+}
+
+.arrow {
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.physical-name {
+  color: #999;
+  font-size: 12px;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
