@@ -1,59 +1,46 @@
 # Filebrowser
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.4.
+A desktop file browser application built with [Angular](https://angular.dev/) and [Tauri 2](https://v2.tauri.app/).
 
-## Development server
+## Prerequisites
 
-To start a local development server, run:
+- [Node.js](https://nodejs.org/) (v22+)
+- [Rust](https://www.rust-lang.org/tools/install)
+- Linux: WebKitGTK and related dev libraries (on Arch: `sudo pacman -S webkit2gtk-4.1`)
 
-```bash
-ng serve
-```
+## Getting Started
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Code scaffolding
+2. Run in development mode:
+   ```bash
+   npm run tauri dev
+   ```
+   The first run will take a few minutes to compile the Rust backend. Subsequent runs are fast.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+3. Build for production:
+   ```bash
+   npm run tauri build
+   ```
 
-```bash
-ng generate component component-name
-```
+## Development
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+### Angular CLI
 
-```bash
-ng generate --help
-```
+- Generate a component: `npx ng generate component component-name`
+- Run unit tests: `npm test`
+- For a complete list of schematics: `npx ng generate --help`
 
-## Building
+### Project Structure
 
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+- `src/` — Angular frontend
+- `src-tauri/` — Tauri/Rust backend
+- `src-tauri/tauri.conf.json` — Tauri configuration
 
 ## Additional Resources
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- [Angular CLI Overview](https://angular.dev/tools/cli)
+- [Tauri 2 Documentation](https://v2.tauri.app/)
