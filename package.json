@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "tauri": "tauri"
+    "tauri": "GDK_BACKEND=x11 tauri"
   },
   "prettier": {
     "printWidth": 100,
