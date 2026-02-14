@@ -1,4 +1,4 @@
-@for (node of nodes(); track node.entry.path) {
+@for (node of nodes(); track node.entry.path + node.isExpanded) {
   <div
     class="tree-node"
     [class.unencoded]="!node.entry.isEncoded"
