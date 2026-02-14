@@ -1,4 +1,4 @@
-import { Component, inject, input } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FileTreeNode } from '../../models/file-node.model';
 import { FileTreeService } from '../../services/file-tree.service';
 import { ContextMenuService } from '../../services/context-menu.service';
@@ -11,9 +11,7 @@ import { ContextMenuService } from '../../services/context-menu.service';
   styleUrl: './file-tree.component.css',
 })
 export class FileTreeComponent {
-  nodes = input.required<FileTreeNode[]>();
-
-  private readonly fileTreeService = inject(FileTreeService);
+  protected readonly fileTreeService = inject(FileTreeService);
   private readonly contextMenuService = inject(ContextMenuService);
 
   onContextMenu(event: MouseEvent, node: FileTreeNode): void {

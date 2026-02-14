@@ -1,10 +1,18 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { FileEntry, FileTreeNode } from '../models/file-node.model';
 import { FileSystemService } from './file-system.service';
 
 @Injectable({ providedIn: 'root' })
 export class FileTreeService {
   readonly root = signal<FileTreeNode | null>(null);
+
+  readonly visibleNodes = computed<FileTreeNode[]>(() => {
+    const root = this.root();
+    if (!root) return [];
+    const result: FileTreeNode[] = [];
+    this.collectVisible(root.children ?? [], result);
+    return result;
+  });
 
   private readonly fs = inject(FileSystemService);
 
@@ -108,6 +116,15 @@ export class FileTreeService {
       isExpanded: false,
       level,
     };
+  }
+
+  private collectVisible(nodes: FileTreeNode[], result: FileTreeNode[]): void {
+    for (const node of nodes) {
+      result.push(node);
+      if (node.isExpanded && node.children) {
+        this.collectVisible(node.children, result);
+      }
+    }
   }
 
   private findParent(target: FileTreeNode, current: FileTreeNode): FileTreeNode | null {

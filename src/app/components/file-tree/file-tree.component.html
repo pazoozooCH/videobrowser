@@ -1,4 +1,4 @@
-@for (node of nodes(); track node.entry.path) {
+@for (node of fileTreeService.visibleNodes(); track node.entry.path) {
   <div
     class="tree-node"
     [class.unencoded]="!node.entry.isEncoded"
@@ -15,8 +15,4 @@
       <span class="physical-name">{{ node.entry.physicalName }}</span>
     }
   </div>
-
-  @if (node.isExpanded && node.children) {
-    <app-file-tree [nodes]="node.children" />
-  }
 }

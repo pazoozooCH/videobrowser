@@ -3,7 +3,7 @@
 @if (fileTreeService.root(); as root) {
   <div class="tree-container">
     <div class="root-path">{{ root.entry.path }}</div>
-    <app-file-tree [nodes]="root.children ?? []" />
+    <app-file-tree />
   </div>
 } @else {
   <div class="empty-state">Click "Open Folder" to browse a directory.</div>
