@@ -1,0 +1,38 @@
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  padding: 4px 0;
+  min-width: 160px;
+  font-family: sans-serif;
+  font-size: 13px;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.menu-item:hover:not(.disabled) {
+  background-color: #e8e8e8;
+}
+
+.menu-item.disabled {
+  color: #aaa;
+  cursor: default;
+}
+
+.separator {
+  height: 1px;
+  background-color: #ddd;
+  margin: 4px 0;
+}

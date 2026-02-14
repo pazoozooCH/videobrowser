@@ -9,6 +9,22 @@ export class FileSystemService {
     return invoke<FileEntry[]>('read_directory', { path });
   }
 
+  async encodeNode(path: string): Promise<FileEntry> {
+    return invoke<FileEntry>('encode_node', { path });
+  }
+
+  async decodeNode(path: string): Promise<FileEntry> {
+    return invoke<FileEntry>('decode_node', { path });
+  }
+
+  async canEncode(path: string): Promise<boolean> {
+    return invoke<boolean>('can_encode_node', { path });
+  }
+
+  async copyToClipboard(text: string): Promise<void> {
+    return invoke<void>('copy_to_clipboard', { text });
+  }
+
   async pickFolder(): Promise<string | null> {
     const selected = await open({ directory: true, multiple: false });
     return selected;

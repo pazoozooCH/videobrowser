@@ -1,6 +1,7 @@
 import { Component, inject, input } from '@angular/core';
 import { FileTreeNode } from '../../models/file-node.model';
 import { FileTreeService } from '../../services/file-tree.service';
+import { ContextMenuService } from '../../services/context-menu.service';
 
 @Component({
   selector: 'app-file-tree',
@@ -13,6 +14,11 @@ export class FileTreeComponent {
   nodes = input.required<FileTreeNode[]>();
 
   private readonly fileTreeService = inject(FileTreeService);
+  private readonly contextMenuService = inject(ContextMenuService);
+
+  onContextMenu(event: MouseEvent, node: FileTreeNode): void {
+    this.contextMenuService.show(event, node);
+  }
 
   onNodeClick(node: FileTreeNode): void {
     if (node.entry.isDirectory) {

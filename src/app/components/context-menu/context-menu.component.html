@@ -1,0 +1,22 @@
+@if (visible()) {
+  <div
+    class="context-menu"
+    [style.left.px]="position().x"
+    [style.top.px]="position().y"
+    (click)="$event.stopPropagation()"
+  >
+    @for (item of items(); track item.label) {
+      @if (item.separator) {
+        <div class="separator"></div>
+      } @else {
+        <button
+          class="menu-item"
+          [class.disabled]="!item.enabled"
+          (click)="onItemClick(item)"
+        >
+          {{ item.label }}
+        </button>
+      }
+    }
+  </div>
+}
