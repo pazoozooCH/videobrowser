@@ -32,14 +32,6 @@ pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
         let is_encoded = decoded_name.is_some();
         let display_name = decoded_name.clone().unwrap_or_else(|| file_name.clone());
 
-        let has_children = if is_directory {
-            fs::read_dir(&entry_path)
-                .map(|mut entries| entries.next().is_some())
-                .unwrap_or(false)
-        } else {
-            false
-        };
-
         file_entries.push(FileEntry {
             path: entry_path.to_string_lossy().to_string(),
             name: display_name,
@@ -47,7 +39,7 @@ pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
             is_directory,
             is_encoded,
             decoded_name,
-            has_children,
+            has_children: is_directory,
         });
     }
 
@@ -214,14 +206,6 @@ fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
     let decoded_name = try_decode_name(&physical_name);
     let is_encoded = decoded_name.is_some();
     let display_name = decoded_name.clone().unwrap_or_else(|| physical_name.clone());
-    let has_children = if is_directory {
-        fs::read_dir(path)
-            .map(|mut entries| entries.next().is_some())
-            .unwrap_or(false)
-    } else {
-        false
-    };
-
     Ok(FileEntry {
         path: path.to_string_lossy().to_string(),
         name: display_name,
@@ -229,6 +213,6 @@ fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
         is_directory,
         is_encoded,
         decoded_name,
-        has_children,
+        has_children: is_directory,
     })
 }
