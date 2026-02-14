@@ -22,6 +22,9 @@ Custom Rust commands for all FS operations (not Tauri's fs plugin) — the `.dat
 - **Rust**: `serde(rename_all = "camelCase")` on all structs sent to frontend
 - **Encoding**: `.dat_` prefix + base64 encoded original name (see `src-tauri/src/encoding/`)
 
+## Workflow
+- Always commit automatically after completing a phase/task — don't ask
+
 ## Commands
 
 - `npm run tauri dev` — Run the app in development mode
