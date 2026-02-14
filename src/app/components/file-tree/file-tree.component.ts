@@ -36,6 +36,11 @@ export class FileTreeComponent {
     return node.isExpanded ? '\u25BE' : '\u25B8';
   }
 
+  isExpanded(node: FileTreeNode): boolean {
+    this.revision(); // force signal dependency
+    return node.isExpanded && node.children !== null;
+  }
+
   getIcon(node: FileTreeNode): string {
     if (!node.entry.isDirectory) return '\uD83D\uDCC4';
     return node.isExpanded ? '\uD83D\uDCC2' : '\uD83D\uDCC1';
