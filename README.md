@@ -21,6 +21,11 @@ A desktop file browser application built with [Angular](https://angular.dev/) an
    ```
    The first run will take a few minutes to compile the Rust backend. Subsequent runs are fast.
 
+   To open a folder automatically on startup:
+   ```bash
+   npm run tauri dev -- -- /path/to/folder
+   ```
+
 3. Build for production:
    ```bash
    npm run tauri build
