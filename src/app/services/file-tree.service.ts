@@ -6,6 +6,7 @@ import { FileSystemService } from './file-system.service';
 export class FileTreeService {
   readonly root = signal<FileTreeNode | null>(null);
   readonly moveSource = signal<FileTreeNode | null>(null);
+  readonly selectedPath = signal<string | null>(null);
 
   readonly visibleNodes = computed<FileTreeNode[]>(() => {
     const root = this.root();

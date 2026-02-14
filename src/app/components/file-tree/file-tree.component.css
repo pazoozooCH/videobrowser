@@ -14,6 +14,19 @@
   background-color: #e8e8e8;
 }
 
+.tree-node.selected {
+  background-color: #4a90d9;
+  color: #fff;
+}
+
+.tree-node.selected .physical-name {
+  color: #cde;
+}
+
+.tree-node.selected:hover {
+  background-color: #3a7bc8;
+}
+
 .tree-node.directory {
   cursor: pointer;
 }
@@ -24,6 +37,14 @@
 
 .tree-node.unencoded:hover {
   background-color: #fff9b0;
+}
+
+.tree-node.unencoded.selected {
+  background-color: #4a90d9;
+}
+
+.tree-node.unencoded.selected:hover {
+  background-color: #3a7bc8;
 }
 
 .arrow {

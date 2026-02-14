@@ -96,7 +96,11 @@ export class ContextMenuService {
     this.menuComponent.show(event.clientX, event.clientY, items);
   }
 
-  private async confirmDelete(node: FileTreeNode): Promise<void> {
+  openRenameDialog(node: FileTreeNode): void {
+    this.renameDialog?.show(node);
+  }
+
+  async confirmDelete(node: FileTreeNode): Promise<void> {
     const childCount = node.entry.isDirectory
       ? await this.fs.countChildren(node.entry.path)
       : 0;

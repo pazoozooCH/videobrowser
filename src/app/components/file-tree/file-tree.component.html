@@ -4,6 +4,7 @@
     [class.unencoded]="!node.entry.isEncoded"
     [class.encoded]="node.entry.isEncoded"
     [class.directory]="node.entry.isDirectory"
+    [class.selected]="isSelected(node)"
     [style.padding-left]="getIndent(node)"
     (click)="onNodeClick(node)"
     (dblclick)="onNodeDblClick(node)"
