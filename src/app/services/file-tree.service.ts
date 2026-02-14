@@ -102,7 +102,7 @@ export class FileTreeService {
   }
 
   private notifyChange(): void {
-    // Trigger signal update by re-setting the same root reference
-    this.root.set(this.root()!);
+    // Spread to create a new object reference so Angular detects the change
+    this.root.set({ ...this.root()! });
   }
 }
