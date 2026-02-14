@@ -196,6 +196,32 @@ pub fn rename_node(path: String, new_name: String, encode: bool) -> Result<FileE
     build_file_entry(&new_path)
 }
 
+#[tauri::command]
+pub fn delete_node(path: String) -> Result<(), String> {
+    let node_path = Path::new(&path);
+    if !node_path.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    if node_path.is_dir() {
+        fs::remove_dir_all(node_path).map_err(|e| format!("Failed to delete directory: {}", e))
+    } else {
+        fs::remove_file(node_path).map_err(|e| format!("Failed to delete file: {}", e))
+    }
+}
+
+#[tauri::command]
+pub fn count_children(path: String) -> Result<usize, String> {
+    let dir_path = Path::new(&path);
+    if !dir_path.is_dir() {
+        return Ok(0);
+    }
+    let count = fs::read_dir(dir_path)
+        .map_err(|e| format!("Failed to read directory: {}", e))?
+        .count();
+    Ok(count)
+}
+
 fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
     let physical_name = path
         .file_name()

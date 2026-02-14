@@ -83,6 +83,15 @@ export class FileTreeService {
     this.notifyChange();
   }
 
+  async deleteNode(node: FileTreeNode): Promise<void> {
+    await this.fs.deleteNode(node.entry.path);
+    const parent = this.findParent(node, this.root()!);
+    if (parent?.children) {
+      parent.children = parent.children.filter((c) => c !== node);
+    }
+    this.notifyChange();
+  }
+
   async refreshNode(node: FileTreeNode): Promise<void> {
     if (!node.entry.isDirectory) return;
     node.children = null;
@@ -99,6 +108,17 @@ export class FileTreeService {
       isExpanded: false,
       level,
     };
+  }
+
+  private findParent(target: FileTreeNode, current: FileTreeNode): FileTreeNode | null {
+    if (current.children) {
+      for (const child of current.children) {
+        if (child === target) return current;
+        const found = this.findParent(target, child);
+        if (found) return found;
+      }
+    }
+    return null;
   }
 
   private notifyChange(): void {

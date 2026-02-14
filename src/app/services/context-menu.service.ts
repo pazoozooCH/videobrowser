@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { ask, message } from '@tauri-apps/plugin-dialog';
 import { FileTreeNode } from '../models/file-node.model';
 import { ContextMenuComponent, ContextMenuItem } from '../components/context-menu/context-menu.component';
 import { RenameDialogComponent } from '../components/rename-dialog/rename-dialog.component';
@@ -55,6 +56,12 @@ export class ContextMenuService {
       },
       { label: '', enabled: false, separator: true, action: () => {} },
       {
+        label: 'Delete',
+        enabled: true,
+        action: () => this.confirmDelete(node),
+      },
+      { label: '', enabled: false, separator: true, action: () => {} },
+      {
         label: 'Refresh',
         enabled: node.entry.isDirectory,
         action: () => this.fileTreeService.refreshNode(node),
@@ -62,5 +69,29 @@ export class ContextMenuService {
     ];
 
     this.menuComponent.show(event.clientX, event.clientY, items);
+  }
+
+  private async confirmDelete(node: FileTreeNode): Promise<void> {
+    const childCount = node.entry.isDirectory
+      ? await this.fs.countChildren(node.entry.path)
+      : 0;
+
+    if (childCount > 5) {
+      await message('Node has too many children to be deleted', {
+        title: 'Cannot delete',
+        kind: 'warning',
+      });
+      return;
+    }
+
+    const childInfo = childCount > 0 ? `\nIt has ${childCount} children` : '';
+    const confirmed = await ask(`Really delete '${node.entry.name}'?${childInfo}`, {
+      title: 'Really delete?',
+      kind: 'warning',
+    });
+
+    if (confirmed) {
+      await this.fileTreeService.deleteNode(node);
+    }
   }
 }

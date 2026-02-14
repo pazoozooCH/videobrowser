@@ -25,6 +25,14 @@ export class FileSystemService {
     return invoke<FileEntry>('rename_node', { path, newName, encode });
   }
 
+  async deleteNode(path: string): Promise<void> {
+    return invoke<void>('delete_node', { path });
+  }
+
+  async countChildren(path: string): Promise<number> {
+    return invoke<number>('count_children', { path });
+  }
+
   async copyToClipboard(text: string): Promise<void> {
     return invoke<void>('copy_to_clipboard', { text });
   }
