@@ -1,0 +1,39 @@
+@if (visible()) {
+  <div class="overlay" (click)="hide()">
+    <div class="dialog" (click)="$event.stopPropagation()">
+      <h3>Rename</h3>
+
+      <div class="field">
+        <label>Current:</label>
+        <input type="text" [value]="currentName()" readonly />
+      </div>
+
+      <div class="field">
+        <label>New:</label>
+        <input
+          type="text"
+          [ngModel]="newName()"
+          (ngModelChange)="newName.set($event)"
+          (keydown)="onKeydown($event)"
+          #newNameInput
+        />
+      </div>
+
+      <div class="field checkbox">
+        <label>
+          <input
+            type="checkbox"
+            [ngModel]="encode()"
+            (ngModelChange)="encode.set($event)"
+          />
+          Encode
+        </label>
+      </div>
+
+      <div class="actions">
+        <button (click)="hide()">Cancel</button>
+        <button class="primary" (click)="onRename()">Rename</button>
+      </div>
+    </div>
+  </div>
+}

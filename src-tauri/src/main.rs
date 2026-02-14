@@ -15,6 +15,7 @@ fn main() {
             fs_commands::decode_node,
             fs_commands::can_encode_node,
             fs_commands::copy_to_clipboard,
+            fs_commands::rename_node,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,7 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { FileTreeNode } from '../models/file-node.model';
 import { ContextMenuComponent, ContextMenuItem } from '../components/context-menu/context-menu.component';
+import { RenameDialogComponent } from '../components/rename-dialog/rename-dialog.component';
 import { FileTreeService } from './file-tree.service';
 import { FileSystemService } from './file-system.service';
 
@@ -10,9 +11,14 @@ export class ContextMenuService {
   private readonly fs = inject(FileSystemService);
 
   private menuComponent: ContextMenuComponent | null = null;
+  private renameDialog: RenameDialogComponent | null = null;
 
   register(component: ContextMenuComponent): void {
     this.menuComponent = component;
+  }
+
+  registerRenameDialog(dialog: RenameDialogComponent): void {
+    this.renameDialog = dialog;
   }
 
   async show(event: MouseEvent, node: FileTreeNode): Promise<void> {
@@ -41,6 +47,11 @@ export class ContextMenuService {
         label: 'Decode',
         enabled: decodable,
         action: () => this.fileTreeService.decodeNode(node),
+      },
+      {
+        label: 'Rename',
+        enabled: true,
+        action: () => this.renameDialog?.show(node),
       },
       { label: '', enabled: false, separator: true, action: () => {} },
       {

@@ -77,6 +77,12 @@ export class FileTreeService {
     this.notifyChange();
   }
 
+  async renameNode(node: FileTreeNode, newName: string, encode: boolean): Promise<void> {
+    const updatedEntry = await this.fs.renameNode(node.entry.path, newName, encode);
+    node.entry = updatedEntry;
+    this.notifyChange();
+  }
+
   async refreshNode(node: FileTreeNode): Promise<void> {
     if (!node.entry.isDirectory) return;
     node.children = null;

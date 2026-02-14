@@ -183,6 +183,27 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to copy to clipboard: {}", e))
 }
 
+#[tauri::command]
+pub fn rename_node(path: String, new_name: String, encode: bool) -> Result<FileEntry, String> {
+    let node_path = Path::new(&path);
+    if !node_path.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    let parent = node_path.parent().ok_or("No parent directory")?;
+
+    let target_name = if encode {
+        encode_name(&new_name)
+    } else {
+        new_name
+    };
+
+    let new_path = parent.join(&target_name);
+    fs::rename(node_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
+
+    build_file_entry(&new_path)
+}
+
 fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
     let physical_name = path
         .file_name()

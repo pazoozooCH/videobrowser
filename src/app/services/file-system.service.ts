@@ -21,6 +21,10 @@ export class FileSystemService {
     return invoke<boolean>('can_encode_node', { path });
   }
 
+  async renameNode(path: string, newName: string, encode: boolean): Promise<FileEntry> {
+    return invoke<FileEntry>('rename_node', { path, newName, encode });
+  }
+
   async copyToClipboard(text: string): Promise<void> {
     return invoke<void>('copy_to_clipboard', { text });
   }
