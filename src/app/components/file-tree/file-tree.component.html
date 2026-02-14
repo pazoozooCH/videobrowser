@@ -6,6 +6,7 @@
     [class.directory]="node.entry.isDirectory"
     [style.padding-left]="getIndent(node)"
     (click)="onNodeClick(node)"
+    (dblclick)="onNodeDblClick(node)"
     (contextmenu)="onContextMenu($event, node)"
   >
     <span class="arrow">{{ getArrow(node) }}</span>

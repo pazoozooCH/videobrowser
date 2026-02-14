@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { FileTreeNode } from '../../models/file-node.model';
 import { FileTreeService } from '../../services/file-tree.service';
+import { FileSystemService } from '../../services/file-system.service';
 import { ContextMenuService } from '../../services/context-menu.service';
 
 @Component({
@@ -12,6 +13,7 @@ import { ContextMenuService } from '../../services/context-menu.service';
 })
 export class FileTreeComponent {
   protected readonly fileTreeService = inject(FileTreeService);
+  private readonly fs = inject(FileSystemService);
   private readonly contextMenuService = inject(ContextMenuService);
 
   onContextMenu(event: MouseEvent, node: FileTreeNode): void {
@@ -21,6 +23,12 @@ export class FileTreeComponent {
   onNodeClick(node: FileTreeNode): void {
     if (node.entry.isDirectory) {
       this.fileTreeService.toggleNode(node);
+    }
+  }
+
+  onNodeDblClick(node: FileTreeNode): void {
+    if (!node.entry.isDirectory) {
+      this.fs.openInVlc(node.entry.path);
     }
   }
 

@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 use crate::encoding::encoded_dir::{can_encode, encode_name, try_decode_name};
 use crate::models::file_entry::FileEntry;
@@ -253,6 +254,74 @@ pub fn move_node(source: String, target_dir: String) -> Result<FileEntry, String
     fs::rename(source_path, &new_path).map_err(|e| format!("Failed to move: {}", e))?;
 
     build_file_entry(&new_path)
+}
+
+#[tauri::command]
+pub fn show_in_file_manager(path: String) -> Result<(), String> {
+    let node_path = Path::new(&path);
+    if !node_path.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    let dir = if node_path.is_dir() {
+        &path
+    } else {
+        node_path
+            .parent()
+            .and_then(|p| p.to_str())
+            .ok_or("No parent directory")?
+    };
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if node_path.is_dir() {
+            Command::new("explorer")
+                .arg(dir)
+                .spawn()
+                .map_err(|e| format!("Failed to open explorer: {}", e))?;
+        } else {
+            Command::new("explorer")
+                .args(["/select,", &path])
+                .spawn()
+                .map_err(|e| format!("Failed to open explorer: {}", e))?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_in_vlc(path: String) -> Result<(), String> {
+    let node_path = Path::new(&path);
+    if !node_path.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("vlc")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open VLC: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("C:/Program Files/VideoLAN/VLC/vlc.exe")
+            .arg(format!("file:///{}", path.replace('\\', "/")))
+            .spawn()
+            .map_err(|e| format!("Failed to open VLC: {}", e))?;
+    }
+
+    Ok(())
 }
 
 fn build_file_entry(path: &Path) -> Result<FileEntry, String> {

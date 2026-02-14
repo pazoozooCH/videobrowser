@@ -37,6 +37,14 @@ export class FileSystemService {
     return invoke<FileEntry>('move_node', { source, targetDir });
   }
 
+  async showInFileManager(path: string): Promise<void> {
+    return invoke<void>('show_in_file_manager', { path });
+  }
+
+  async openInVlc(path: string): Promise<void> {
+    return invoke<void>('open_in_vlc', { path });
+  }
+
   async copyToClipboard(text: string): Promise<void> {
     return invoke<void>('copy_to_clipboard', { text });
   }

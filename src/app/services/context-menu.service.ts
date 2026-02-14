@@ -36,6 +36,16 @@ export class ContextMenuService {
 
     const items: ContextMenuItem[] = [
       {
+        label: 'Open in VLC Player',
+        enabled: !node.entry.isDirectory,
+        action: () => this.fs.openInVlc(node.entry.path),
+      },
+      {
+        label: 'Show in File Manager',
+        enabled: true,
+        action: () => this.fs.showInFileManager(node.entry.path),
+      },
+      {
         label: 'Copy Path',
         enabled: true,
         action: () => this.fs.copyToClipboard(node.entry.path),
