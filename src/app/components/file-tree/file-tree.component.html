@@ -16,7 +16,7 @@
     }
   </div>
 
-  @if (isExpanded(node)) {
-    <app-file-tree [nodes]="node.children!" />
+  @if (node.isExpanded && node.children) {
+    <app-file-tree [nodes]="node.children" />
   }
 }

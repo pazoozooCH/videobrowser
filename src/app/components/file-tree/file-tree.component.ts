@@ -12,7 +12,6 @@ import { ContextMenuService } from '../../services/context-menu.service';
 })
 export class FileTreeComponent {
   nodes = input.required<FileTreeNode[]>();
-  protected readonly revision = inject(FileTreeService).revision;
 
   private readonly fileTreeService = inject(FileTreeService);
   private readonly contextMenuService = inject(ContextMenuService);
@@ -33,16 +32,11 @@ export class FileTreeComponent {
 
   getArrow(node: FileTreeNode): string {
     if (!node.entry.isDirectory) return '  ';
-    return node.isExpanded ? '\u25BE' : '\u25B8';
-  }
-
-  isExpanded(node: FileTreeNode): boolean {
-    this.revision(); // force signal dependency
-    return node.isExpanded && node.children !== null;
+    return node.isExpanded ? '▾' : '▸';
   }
 
   getIcon(node: FileTreeNode): string {
-    if (!node.entry.isDirectory) return '\uD83D\uDCC4';
-    return node.isExpanded ? '\uD83D\uDCC2' : '\uD83D\uDCC1';
+    if (!node.entry.isDirectory) return '📄';
+    return node.isExpanded ? '📂' : '📁';
   }
 }

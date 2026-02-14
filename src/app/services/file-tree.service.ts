@@ -5,7 +5,6 @@ import { FileSystemService } from './file-system.service';
 @Injectable({ providedIn: 'root' })
 export class FileTreeService {
   readonly root = signal<FileTreeNode | null>(null);
-  readonly revision = signal(0);
 
   private readonly fs = inject(FileSystemService);
 
@@ -123,6 +122,13 @@ export class FileTreeService {
   }
 
   private notifyChange(): void {
-    this.revision.update((v) => v + 1);
+    this.root.set(this.cloneTree(this.root()!));
+  }
+
+  private cloneTree(node: FileTreeNode): FileTreeNode {
+    return {
+      ...node,
+      children: node.children?.map((c) => this.cloneTree(c)) ?? null,
+    };
   }
 }
