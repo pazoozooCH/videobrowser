@@ -1,4 +1,5 @@
 import { Component, inject, viewChild } from '@angular/core';
+import { invoke } from '@tauri-apps/api/core';
 import { ToolbarComponent } from './components/toolbar/toolbar.component';
 import { FileTreeComponent } from './components/file-tree/file-tree.component';
 import { ContextMenuComponent } from './components/context-menu/context-menu.component';
@@ -21,5 +22,13 @@ export class App {
   ngAfterViewInit(): void {
     this.contextMenuService.register(this.contextMenu());
     this.contextMenuService.registerRenameDialog(this.renameDialog());
+    this.openCliPath();
+  }
+
+  private async openCliPath(): Promise<void> {
+    const path = await invoke<string | null>('get_cli_path');
+    if (path) {
+      await this.fileTreeService.openFolder(path);
+    }
   }
 }

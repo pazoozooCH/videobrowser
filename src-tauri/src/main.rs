@@ -18,6 +18,7 @@ fn main() {
             fs_commands::rename_node,
             fs_commands::delete_node,
             fs_commands::count_children,
+            fs_commands::get_cli_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

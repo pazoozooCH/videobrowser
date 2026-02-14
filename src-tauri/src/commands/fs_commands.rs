@@ -4,6 +4,13 @@ use std::path::Path;
 use crate::encoding::encoded_dir::{can_encode, encode_name, try_decode_name};
 use crate::models::file_entry::FileEntry;
 
+#[tauri::command]
+pub fn get_cli_path() -> Option<String> {
+    std::env::args()
+        .nth(1)
+        .filter(|arg| Path::new(arg).is_dir())
+}
+
 const EXCLUDED_FILES: &[&str] = &[".gitignore"];
 
 #[tauri::command]
