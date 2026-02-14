@@ -49,6 +49,10 @@ export class FileSystemService {
     return invoke<void>('copy_to_clipboard', { text });
   }
 
+  async searchFiles(path: string, pattern: string): Promise<FileEntry[]> {
+    return invoke<FileEntry[]>('search_files', { path, pattern });
+  }
+
   async pickFolder(): Promise<string | null> {
     const selected = await open({ directory: true, multiple: false });
     return selected;

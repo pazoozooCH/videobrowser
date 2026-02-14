@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { FileSystemService } from '../../services/file-system.service';
 import { FileTreeService } from '../../services/file-tree.service';
+import { SearchService } from '../../services/search.service';
 
 @Component({
   selector: 'app-toolbar',
@@ -11,6 +12,7 @@ import { FileTreeService } from '../../services/file-tree.service';
 export class ToolbarComponent {
   private readonly fsService = inject(FileSystemService);
   private readonly fileTreeService = inject(FileTreeService);
+  protected readonly searchService = inject(SearchService);
 
   async openFolder(): Promise<void> {
     const path = await this.fsService.pickFolder();

@@ -1,0 +1,28 @@
+@if (searchService.searchActive()) {
+  <div class="search-panel">
+    <div class="search-bar">
+      <input
+        #searchInput
+        type="text"
+        placeholder="Search files..."
+        [value]="searchService.query()"
+        (keydown)="onKeydown($event)"
+      />
+      <button (click)="doSearch()">Search</button>
+      <button (click)="searchService.clear()">Close</button>
+    </div>
+
+    @if (searchService.results().length > 0) {
+      <div class="search-results">
+        @for (entry of searchService.results(); track entry.path) {
+          <div class="search-result" (click)="selectResult(entry)">
+            <span class="result-name">{{ entry.name }}</span>
+            <span class="result-path">{{ getRelativePath(entry) }}</span>
+          </div>
+        }
+      </div>
+    } @else if (searchService.query()) {
+      <div class="no-results">No results found.</div>
+    }
+  </div>
+}

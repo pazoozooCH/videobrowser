@@ -22,6 +22,7 @@ fn main() {
             fs_commands::show_in_file_manager,
             fs_commands::open_in_vlc,
             fs_commands::get_cli_path,
+            fs_commands::search_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

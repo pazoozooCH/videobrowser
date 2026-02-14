@@ -1,28 +1,41 @@
-import { Component, inject, viewChild } from '@angular/core';
+import { Component, HostListener, inject, viewChild } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { ToolbarComponent } from './components/toolbar/toolbar.component';
 import { FileTreeComponent } from './components/file-tree/file-tree.component';
 import { ContextMenuComponent } from './components/context-menu/context-menu.component';
 import { RenameDialogComponent } from './components/rename-dialog/rename-dialog.component';
+import { SearchPanelComponent } from './components/search-panel/search-panel.component';
 import { FileTreeService } from './services/file-tree.service';
 import { ContextMenuService } from './services/context-menu.service';
+import { SearchService } from './services/search.service';
 
 @Component({
   selector: 'app-root',
-  imports: [ToolbarComponent, FileTreeComponent, ContextMenuComponent, RenameDialogComponent],
+  imports: [ToolbarComponent, FileTreeComponent, ContextMenuComponent, RenameDialogComponent, SearchPanelComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
   protected readonly fileTreeService = inject(FileTreeService);
   private readonly contextMenuService = inject(ContextMenuService);
+  protected readonly searchService = inject(SearchService);
   private readonly contextMenu = viewChild.required(ContextMenuComponent);
   private readonly renameDialog = viewChild.required(RenameDialogComponent);
+  private readonly searchPanel = viewChild(SearchPanelComponent);
 
   ngAfterViewInit(): void {
     this.contextMenuService.register(this.contextMenu());
     this.contextMenuService.registerRenameDialog(this.renameDialog());
     this.openCliPath();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if (event.ctrlKey && event.key === 'f') {
+      event.preventDefault();
+      this.searchService.searchActive.set(true);
+      requestAnimationFrame(() => this.searchPanel()?.focusInput());
+    }
   }
 
   private async openCliPath(): Promise<void> {

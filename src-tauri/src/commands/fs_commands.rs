@@ -324,6 +324,46 @@ pub fn open_in_vlc(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn search_files(path: String, pattern: String) -> Result<Vec<FileEntry>, String> {
+    let dir_path = Path::new(&path);
+    if !dir_path.is_dir() {
+        return Err(format!("Not a directory: {}", path));
+    }
+
+    let pattern_lower = pattern.to_lowercase();
+    let mut results = Vec::new();
+    search_recursive(dir_path, &pattern_lower, &mut results)?;
+    results.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(results)
+}
+
+fn search_recursive(dir: &Path, pattern: &str, results: &mut Vec<FileEntry>) -> Result<(), String> {
+    let entries = fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let file_name = entry.file_name().to_string_lossy().to_string();
+
+        if EXCLUDED_FILES.contains(&file_name.as_str()) {
+            continue;
+        }
+
+        let entry_path = entry.path();
+        let display_name = try_decode_name(&file_name).unwrap_or_else(|| file_name.clone());
+
+        if display_name.to_lowercase().contains(pattern) {
+            results.push(build_file_entry(&entry_path)?);
+        }
+
+        if entry_path.is_dir() {
+            search_recursive(&entry_path, pattern, results)?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
     let physical_name = path
         .file_name()
@@ -717,6 +757,56 @@ mod tests {
             target.to_string_lossy().to_string(),
         );
         assert!(result.is_err());
+    }
+
+    // --- can_encode_node ---
+
+    // --- search_files ---
+
+    #[test]
+    fn test_search_files_basic() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join("hello.txt"), "").unwrap();
+        fs::write(tmp.path().join("world.txt"), "").unwrap();
+        let sub = tmp.path().join("subdir");
+        fs::create_dir(&sub).unwrap();
+        fs::write(sub.join("hello_nested.txt"), "").unwrap();
+
+        let results = search_files(tmp.path().to_string_lossy().to_string(), "hello".to_string()).unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|r| r.name.to_lowercase().contains("hello")));
+    }
+
+    #[test]
+    fn test_search_files_case_insensitive() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join("Hello.TXT"), "").unwrap();
+        fs::write(tmp.path().join("other.txt"), "").unwrap();
+
+        let results = search_files(tmp.path().to_string_lossy().to_string(), "hello".to_string()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "Hello.TXT");
+    }
+
+    #[test]
+    fn test_search_files_encoded_names() {
+        let tmp = create_test_dir();
+        // .dat_VGVzdA== decodes to "Test"
+        fs::write(tmp.path().join(".dat_VGVzdA=="), "").unwrap();
+        fs::write(tmp.path().join("other.txt"), "").unwrap();
+
+        let results = search_files(tmp.path().to_string_lossy().to_string(), "test".to_string()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "Test");
+    }
+
+    #[test]
+    fn test_search_files_excludes_gitignore() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join(".gitignore"), "").unwrap();
+
+        let results = search_files(tmp.path().to_string_lossy().to_string(), "gitignore".to_string()).unwrap();
+        assert_eq!(results.len(), 0);
     }
 
     // --- can_encode_node ---
