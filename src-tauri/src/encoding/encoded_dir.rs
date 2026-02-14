@@ -34,11 +34,15 @@ pub fn can_encode(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
 
     #[test]
     fn test_try_decode_encoded_name() {
-        let encoded = format!(".dat_{}", encode_string("my_folder"));
-        assert_eq!(try_decode_name(&encoded), Some("my_folder".to_string()));
+        assert_eq!(
+            try_decode_name(".dat_VGVzdA=="),
+            Some("Test".to_string())
+        );
     }
 
     #[test]
@@ -47,8 +51,50 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_name() {
-        let result = encode_name("test");
-        assert!(result.starts_with(".dat_"));
+    fn test_try_decode_not_base64_after_prefix() {
+        assert_eq!(try_decode_name(".dat_!!!invalid!!!"), None);
+    }
+
+    #[test]
+    fn test_encode_name_known_value() {
+        assert_eq!(encode_name("Test"), ".dat_VGVzdA==");
+    }
+
+    #[test]
+    fn test_encode_name_special_chars() {
+        let encoded = encode_name("éàè!+ç%&/^¨w ");
+        assert_eq!(encoded, ".dat_w6nDoMOoISvDpyUmL17CqHcg");
+    }
+
+    #[test]
+    fn test_encode_decode_name_roundtrip() {
+        let original = "my_folder";
+        let encoded = encode_name(original);
+        let decoded = try_decode_name(&encoded);
+        assert_eq!(decoded, Some(original.to_string()));
+    }
+
+    #[test]
+    fn test_encode_decode_name_roundtrip_unicode() {
+        let original = "日本語フォルダ";
+        let encoded = encode_name(original);
+        let decoded = try_decode_name(&encoded);
+        assert_eq!(decoded, Some(original.to_string()));
+    }
+
+    #[test]
+    fn test_can_encode_short_path() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("short_name.txt");
+        std::fs::write(&file, "").unwrap();
+        assert!(can_encode(&file));
+    }
+
+    #[test]
+    fn test_can_encode_long_path() {
+        // Create a path that would exceed 256 chars when encoded
+        let long_name = "a".repeat(200);
+        let path = PathBuf::from("/tmp").join(&long_name);
+        assert!(!can_encode(&path));
     }
 }

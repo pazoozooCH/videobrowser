@@ -324,7 +324,7 @@ pub fn open_in_vlc(path: String) -> Result<(), String> {
     Ok(())
 }
 
-fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
+pub fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
     let physical_name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -343,4 +343,391 @@ fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
         decoded_name,
         has_children: is_directory,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn create_test_dir() -> TempDir {
+        TempDir::new().unwrap()
+    }
+
+    // --- build_file_entry ---
+
+    #[test]
+    fn test_build_file_entry_plain_file() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("hello.txt");
+        fs::write(&file, "content").unwrap();
+
+        let entry = build_file_entry(&file).unwrap();
+        assert_eq!(entry.name, "hello.txt");
+        assert_eq!(entry.physical_name, "hello.txt");
+        assert!(!entry.is_directory);
+        assert!(!entry.is_encoded);
+        assert_eq!(entry.decoded_name, None);
+        assert!(!entry.has_children);
+    }
+
+    #[test]
+    fn test_build_file_entry_encoded_file() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join(".dat_VGVzdA==");
+        fs::write(&file, "content").unwrap();
+
+        let entry = build_file_entry(&file).unwrap();
+        assert_eq!(entry.name, "Test");
+        assert_eq!(entry.physical_name, ".dat_VGVzdA==");
+        assert!(entry.is_encoded);
+        assert_eq!(entry.decoded_name, Some("Test".to_string()));
+    }
+
+    #[test]
+    fn test_build_file_entry_directory() {
+        let tmp = create_test_dir();
+        let dir = tmp.path().join("subdir");
+        fs::create_dir(&dir).unwrap();
+
+        let entry = build_file_entry(&dir).unwrap();
+        assert!(entry.is_directory);
+        assert!(entry.has_children);
+    }
+
+    // --- read_directory ---
+
+    #[test]
+    fn test_read_directory_basic() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join("b.txt"), "").unwrap();
+        fs::write(tmp.path().join("a.txt"), "").unwrap();
+        fs::create_dir(tmp.path().join("c_dir")).unwrap();
+
+        let entries = read_directory(tmp.path().to_string_lossy().to_string()).unwrap();
+        assert_eq!(entries.len(), 3);
+        // Should be sorted alphabetically
+        assert_eq!(entries[0].name, "a.txt");
+        assert_eq!(entries[1].name, "b.txt");
+        assert_eq!(entries[2].name, "c_dir");
+    }
+
+    #[test]
+    fn test_read_directory_excludes_gitignore() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join(".gitignore"), "").unwrap();
+        fs::write(tmp.path().join("file.txt"), "").unwrap();
+
+        let entries = read_directory(tmp.path().to_string_lossy().to_string()).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "file.txt");
+    }
+
+    #[test]
+    fn test_read_directory_decodes_encoded_names() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join(".dat_VGVzdA=="), "").unwrap();
+
+        let entries = read_directory(tmp.path().to_string_lossy().to_string()).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "Test");
+        assert_eq!(entries[0].physical_name, ".dat_VGVzdA==");
+        assert!(entries[0].is_encoded);
+    }
+
+    #[test]
+    fn test_read_directory_not_a_dir() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("file.txt");
+        fs::write(&file, "").unwrap();
+
+        let result = read_directory(file.to_string_lossy().to_string());
+        assert!(result.is_err());
+    }
+
+    // --- encode_node ---
+
+    #[test]
+    fn test_encode_node_file() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("hello.txt");
+        fs::write(&file, "content").unwrap();
+
+        let entry = encode_node(file.to_string_lossy().to_string()).unwrap();
+        assert!(entry.is_encoded);
+        assert_eq!(entry.name, "hello.txt");
+        assert!(entry.physical_name.starts_with(".dat_"));
+        // Original should no longer exist
+        assert!(!file.exists());
+        // Encoded file should exist
+        assert!(Path::new(&entry.path).exists());
+    }
+
+    #[test]
+    fn test_encode_node_already_encoded() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join(".dat_VGVzdA==");
+        fs::write(&file, "content").unwrap();
+
+        let entry = encode_node(file.to_string_lossy().to_string()).unwrap();
+        // Should remain unchanged
+        assert_eq!(entry.physical_name, ".dat_VGVzdA==");
+        assert!(file.exists());
+    }
+
+    #[test]
+    fn test_encode_node_directory_recursive() {
+        let tmp = create_test_dir();
+        let dir = tmp.path().join("parent");
+        fs::create_dir(&dir).unwrap();
+        fs::write(dir.join("child.txt"), "").unwrap();
+        fs::create_dir(dir.join("subdir")).unwrap();
+        fs::write(dir.join("subdir").join("nested.txt"), "").unwrap();
+
+        let entry = encode_node(dir.to_string_lossy().to_string()).unwrap();
+        assert!(entry.is_encoded);
+
+        // Children should also be encoded
+        let encoded_dir = Path::new(&entry.path);
+        let children: Vec<_> = fs::read_dir(encoded_dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(children.iter().all(|c| c.starts_with(".dat_")));
+    }
+
+    // --- decode_node ---
+
+    #[test]
+    fn test_decode_node_file() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join(".dat_VGVzdA==");
+        fs::write(&file, "content").unwrap();
+
+        let entry = decode_node(file.to_string_lossy().to_string()).unwrap();
+        assert!(!entry.is_encoded);
+        assert_eq!(entry.name, "Test");
+        assert_eq!(entry.physical_name, "Test");
+        // Original encoded file should no longer exist
+        assert!(!file.exists());
+        assert!(Path::new(&entry.path).exists());
+    }
+
+    #[test]
+    fn test_decode_node_already_decoded() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("plain.txt");
+        fs::write(&file, "content").unwrap();
+
+        let entry = decode_node(file.to_string_lossy().to_string()).unwrap();
+        assert_eq!(entry.physical_name, "plain.txt");
+        assert!(file.exists());
+    }
+
+    #[test]
+    fn test_decode_node_directory_recursive() {
+        let tmp = create_test_dir();
+        let dir = tmp.path().join(".dat_cGFyZW50");
+        fs::create_dir(&dir).unwrap();
+        fs::write(dir.join(".dat_Y2hpbGQudHh0"), "").unwrap();
+
+        let entry = decode_node(dir.to_string_lossy().to_string()).unwrap();
+        assert!(!entry.is_encoded);
+        assert_eq!(entry.name, "parent");
+
+        let decoded_dir = Path::new(&entry.path);
+        let children: Vec<_> = fs::read_dir(decoded_dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(children, vec!["child.txt"]);
+    }
+
+    // --- encode then decode roundtrip ---
+
+    #[test]
+    fn test_encode_then_decode_roundtrip() {
+        let tmp = create_test_dir();
+        let dir = tmp.path().join("my_folder");
+        fs::create_dir(&dir).unwrap();
+        fs::write(dir.join("file.txt"), "hello").unwrap();
+
+        // Encode
+        let encoded = encode_node(dir.to_string_lossy().to_string()).unwrap();
+        assert!(encoded.is_encoded);
+
+        // Decode
+        let decoded = decode_node(encoded.path.clone()).unwrap();
+        assert!(!decoded.is_encoded);
+        assert_eq!(decoded.name, "my_folder");
+
+        // Verify file content survived
+        let restored_file = Path::new(&decoded.path).join("file.txt");
+        assert_eq!(fs::read_to_string(restored_file).unwrap(), "hello");
+    }
+
+    // --- rename_node ---
+
+    #[test]
+    fn test_rename_node_plain() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("old.txt");
+        fs::write(&file, "content").unwrap();
+
+        let entry = rename_node(
+            file.to_string_lossy().to_string(),
+            "new.txt".to_string(),
+            false,
+        )
+        .unwrap();
+        assert_eq!(entry.name, "new.txt");
+        assert!(!entry.is_encoded);
+        assert!(!file.exists());
+        assert!(tmp.path().join("new.txt").exists());
+    }
+
+    #[test]
+    fn test_rename_node_with_encode() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("old.txt");
+        fs::write(&file, "content").unwrap();
+
+        let entry = rename_node(
+            file.to_string_lossy().to_string(),
+            "new.txt".to_string(),
+            true,
+        )
+        .unwrap();
+        assert_eq!(entry.name, "new.txt");
+        assert!(entry.is_encoded);
+        assert!(entry.physical_name.starts_with(".dat_"));
+    }
+
+    // --- delete_node ---
+
+    #[test]
+    fn test_delete_file() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("delete_me.txt");
+        fs::write(&file, "").unwrap();
+
+        delete_node(file.to_string_lossy().to_string()).unwrap();
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn test_delete_directory() {
+        let tmp = create_test_dir();
+        let dir = tmp.path().join("delete_dir");
+        fs::create_dir(&dir).unwrap();
+        fs::write(dir.join("child.txt"), "").unwrap();
+
+        delete_node(dir.to_string_lossy().to_string()).unwrap();
+        assert!(!dir.exists());
+    }
+
+    #[test]
+    fn test_delete_nonexistent() {
+        let result = delete_node("/nonexistent/path/file.txt".to_string());
+        assert!(result.is_err());
+    }
+
+    // --- count_children ---
+
+    #[test]
+    fn test_count_children_empty() {
+        let tmp = create_test_dir();
+        let count = count_children(tmp.path().to_string_lossy().to_string()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_count_children_with_items() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join("a.txt"), "").unwrap();
+        fs::write(tmp.path().join("b.txt"), "").unwrap();
+        fs::create_dir(tmp.path().join("sub")).unwrap();
+
+        let count = count_children(tmp.path().to_string_lossy().to_string()).unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_count_children_file_returns_zero() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("file.txt");
+        fs::write(&file, "").unwrap();
+
+        let count = count_children(file.to_string_lossy().to_string()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    // --- move_node ---
+
+    #[test]
+    fn test_move_file() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("source.txt");
+        fs::write(&file, "content").unwrap();
+        let target = tmp.path().join("target_dir");
+        fs::create_dir(&target).unwrap();
+
+        let entry = move_node(
+            file.to_string_lossy().to_string(),
+            target.to_string_lossy().to_string(),
+        )
+        .unwrap();
+
+        assert!(!file.exists());
+        assert_eq!(entry.name, "source.txt");
+        assert!(target.join("source.txt").exists());
+    }
+
+    #[test]
+    fn test_move_directory() {
+        let tmp = create_test_dir();
+        let dir = tmp.path().join("source_dir");
+        fs::create_dir(&dir).unwrap();
+        fs::write(dir.join("child.txt"), "hello").unwrap();
+        let target = tmp.path().join("target_dir");
+        fs::create_dir(&target).unwrap();
+
+        move_node(
+            dir.to_string_lossy().to_string(),
+            target.to_string_lossy().to_string(),
+        )
+        .unwrap();
+
+        assert!(!dir.exists());
+        let moved = target.join("source_dir").join("child.txt");
+        assert_eq!(fs::read_to_string(moved).unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_move_to_existing_target_fails() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("source.txt");
+        fs::write(&file, "").unwrap();
+        let target = tmp.path().join("target_dir");
+        fs::create_dir(&target).unwrap();
+        fs::write(target.join("source.txt"), "").unwrap();
+
+        let result = move_node(
+            file.to_string_lossy().to_string(),
+            target.to_string_lossy().to_string(),
+        );
+        assert!(result.is_err());
+    }
+
+    // --- can_encode_node ---
+
+    #[test]
+    fn test_can_encode_node_short_name() {
+        let tmp = create_test_dir();
+        let file = tmp.path().join("short.txt");
+        fs::write(&file, "").unwrap();
+
+        let result = can_encode_node(file.to_string_lossy().to_string()).unwrap();
+        assert!(result);
+    }
 }
