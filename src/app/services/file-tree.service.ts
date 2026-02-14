@@ -94,10 +94,7 @@ export class FileTreeService {
 
   async deleteNode(node: FileTreeNode): Promise<void> {
     await this.fs.deleteNode(node.entry.path);
-    const parent = this.findParent(node, this.root()!);
-    if (parent?.children) {
-      parent.children = parent.children.filter((c) => c !== node);
-    }
+    this.removeFromParent(node.entry.path);
     this.notifyChange();
   }
 
@@ -107,22 +104,20 @@ export class FileTreeService {
 
   canMoveTo(target: FileTreeNode): boolean {
     const source = this.moveSource();
-    if (!source || source === target || !target.entry.isDirectory) return false;
-    // Can't move into itself or a descendant
-    return !this.isDescendantOf(target, source);
+    if (!source || source.entry.path === target.entry.path || !target.entry.isDirectory) return false;
+    // Can't move into a direct parent (already there) or a descendant
+    return !target.entry.path.startsWith(source.entry.path + '/');
   }
 
   async moveNode(target: FileTreeNode): Promise<void> {
     const source = this.moveSource();
     if (!source || !this.canMoveTo(target)) return;
 
-    await this.fs.moveNode(source.entry.path, target.entry.path);
+    const sourcePath = source.entry.path;
+    await this.fs.moveNode(sourcePath, target.entry.path);
 
     // Remove from old parent
-    const oldParent = this.findParent(source, this.root()!);
-    if (oldParent?.children) {
-      oldParent.children = oldParent.children.filter((c) => c !== source);
-    }
+    this.removeFromParent(sourcePath);
 
     // Refresh target to show the moved node
     if (target.children !== null) {
@@ -132,15 +127,6 @@ export class FileTreeService {
 
     this.moveSource.set(null);
     this.notifyChange();
-  }
-
-  private isDescendantOf(node: FileTreeNode, ancestor: FileTreeNode): boolean {
-    if (!ancestor.children) return false;
-    for (const child of ancestor.children) {
-      if (child === node) return true;
-      if (this.isDescendantOf(node, child)) return true;
-    }
-    return false;
   }
 
   async refreshNode(node: FileTreeNode): Promise<void> {
@@ -170,11 +156,18 @@ export class FileTreeService {
     }
   }
 
-  private findParent(target: FileTreeNode, current: FileTreeNode): FileTreeNode | null {
+  private removeFromParent(path: string): void {
+    const parent = this.findParent(path, this.root()!);
+    if (parent?.children) {
+      parent.children = parent.children.filter((c) => c.entry.path !== path);
+    }
+  }
+
+  private findParent(targetPath: string, current: FileTreeNode): FileTreeNode | null {
     if (current.children) {
       for (const child of current.children) {
-        if (child === target) return current;
-        const found = this.findParent(target, child);
+        if (child.entry.path === targetPath) return current;
+        const found = this.findParent(targetPath, child);
         if (found) return found;
       }
     }
