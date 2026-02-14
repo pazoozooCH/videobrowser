@@ -5,6 +5,7 @@ import { FileSystemService } from './file-system.service';
 @Injectable({ providedIn: 'root' })
 export class FileTreeService {
   readonly root = signal<FileTreeNode | null>(null);
+  readonly revision = signal(0);
 
   private readonly fs = inject(FileSystemService);
 
@@ -122,7 +123,6 @@ export class FileTreeService {
   }
 
   private notifyChange(): void {
-    // Spread to create a new object reference so Angular detects the change
-    this.root.set({ ...this.root()! });
+    this.revision.update((v) => v + 1);
   }
 }

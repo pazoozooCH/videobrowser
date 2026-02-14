@@ -12,6 +12,7 @@ import { ContextMenuService } from '../../services/context-menu.service';
 })
 export class FileTreeComponent {
   nodes = input.required<FileTreeNode[]>();
+  protected readonly revision = inject(FileTreeService).revision;
 
   private readonly fileTreeService = inject(FileTreeService);
   private readonly contextMenuService = inject(ContextMenuService);
