@@ -229,6 +229,32 @@ pub fn count_children(path: String) -> Result<usize, String> {
     Ok(count)
 }
 
+#[tauri::command]
+pub fn move_node(source: String, target_dir: String) -> Result<FileEntry, String> {
+    let source_path = Path::new(&source);
+    let target_path = Path::new(&target_dir);
+
+    if !source_path.exists() {
+        return Err(format!("Source does not exist: {}", source));
+    }
+    if !target_path.is_dir() {
+        return Err(format!("Target is not a directory: {}", target_dir));
+    }
+
+    let file_name = source_path
+        .file_name()
+        .ok_or("Invalid source file name")?;
+    let new_path = target_path.join(file_name);
+
+    if new_path.exists() {
+        return Err(format!("Target already exists: {}", new_path.display()));
+    }
+
+    fs::rename(source_path, &new_path).map_err(|e| format!("Failed to move: {}", e))?;
+
+    build_file_entry(&new_path)
+}
+
 fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
     let physical_name = path
         .file_name()

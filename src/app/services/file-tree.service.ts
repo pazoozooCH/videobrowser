@@ -5,6 +5,7 @@ import { FileSystemService } from './file-system.service';
 @Injectable({ providedIn: 'root' })
 export class FileTreeService {
   readonly root = signal<FileTreeNode | null>(null);
+  readonly moveSource = signal<FileTreeNode | null>(null);
 
   readonly visibleNodes = computed<FileTreeNode[]>(() => {
     const root = this.root();
@@ -98,6 +99,48 @@ export class FileTreeService {
       parent.children = parent.children.filter((c) => c !== node);
     }
     this.notifyChange();
+  }
+
+  selectForMove(node: FileTreeNode): void {
+    this.moveSource.set(node);
+  }
+
+  canMoveTo(target: FileTreeNode): boolean {
+    const source = this.moveSource();
+    if (!source || source === target || !target.entry.isDirectory) return false;
+    // Can't move into itself or a descendant
+    return !this.isDescendantOf(target, source);
+  }
+
+  async moveNode(target: FileTreeNode): Promise<void> {
+    const source = this.moveSource();
+    if (!source || !this.canMoveTo(target)) return;
+
+    await this.fs.moveNode(source.entry.path, target.entry.path);
+
+    // Remove from old parent
+    const oldParent = this.findParent(source, this.root()!);
+    if (oldParent?.children) {
+      oldParent.children = oldParent.children.filter((c) => c !== source);
+    }
+
+    // Refresh target to show the moved node
+    if (target.children !== null) {
+      const entries = await this.fs.readDirectory(target.entry.path);
+      target.children = entries.map((e) => this.entryToNode(e, target.level + 1));
+    }
+
+    this.moveSource.set(null);
+    this.notifyChange();
+  }
+
+  private isDescendantOf(node: FileTreeNode, ancestor: FileTreeNode): boolean {
+    if (!ancestor.children) return false;
+    for (const child of ancestor.children) {
+      if (child === node) return true;
+      if (this.isDescendantOf(node, child)) return true;
+    }
+    return false;
   }
 
   async refreshNode(node: FileTreeNode): Promise<void> {

@@ -31,6 +31,8 @@ export class ContextMenuService {
     const canEncode = await this.fs.canEncode(node.entry.path);
     const encodable = node.entry.isDirectory || !node.entry.isEncoded;
     const decodable = node.entry.isDirectory || node.entry.isEncoded;
+    const moveSource = this.fileTreeService.moveSource();
+    const canMoveHere = this.fileTreeService.canMoveTo(node);
 
     const items: ContextMenuItem[] = [
       {
@@ -65,6 +67,19 @@ export class ContextMenuService {
         label: 'Refresh',
         enabled: node.entry.isDirectory,
         action: () => this.fileTreeService.refreshNode(node),
+      },
+      { label: '', enabled: false, separator: true, action: () => {} },
+      {
+        label: 'Select for Move',
+        enabled: true,
+        action: () => this.fileTreeService.selectForMove(node),
+      },
+      {
+        label: moveSource
+          ? `Move [${moveSource.entry.name}] here`
+          : 'Select for Move first',
+        enabled: canMoveHere,
+        action: () => this.fileTreeService.moveNode(node),
       },
     ];
 

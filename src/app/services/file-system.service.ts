@@ -33,6 +33,10 @@ export class FileSystemService {
     return invoke<number>('count_children', { path });
   }
 
+  async moveNode(source: string, targetDir: string): Promise<FileEntry> {
+    return invoke<FileEntry>('move_node', { source, targetDir });
+  }
+
   async copyToClipboard(text: string): Promise<void> {
     return invoke<void>('copy_to_clipboard', { text });
   }
