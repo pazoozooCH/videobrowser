@@ -36,6 +36,11 @@ pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
 
         let entry_path = entry.path();
         let is_directory = entry_path.is_dir();
+        let file_size = if is_directory {
+            0
+        } else {
+            fs::metadata(&entry_path).map(|m| m.len()).unwrap_or(0)
+        };
         let decoded_name = try_decode_name(&file_name);
         let is_encoded = decoded_name.is_some();
         let display_name = decoded_name.clone().unwrap_or_else(|| file_name.clone());
@@ -48,6 +53,7 @@ pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
             is_encoded,
             decoded_name,
             has_children: is_directory,
+            file_size,
         });
     }
 
@@ -371,6 +377,11 @@ pub fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
         .ok_or("Invalid file name")?
         .to_string();
     let is_directory = path.is_dir();
+    let file_size = if is_directory {
+        0
+    } else {
+        fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+    };
     let decoded_name = try_decode_name(&physical_name);
     let is_encoded = decoded_name.is_some();
     let display_name = decoded_name.clone().unwrap_or_else(|| physical_name.clone());
@@ -382,6 +393,7 @@ pub fn build_file_entry(path: &Path) -> Result<FileEntry, String> {
         is_encoded,
         decoded_name,
         has_children: is_directory,
+        file_size,
     })
 }
 

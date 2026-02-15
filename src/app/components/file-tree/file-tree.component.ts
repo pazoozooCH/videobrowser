@@ -117,6 +117,13 @@ export class FileTreeComponent {
     'mp4', 'mkv', 'avi', 'webm', 'mov', 'mpg', 'mpeg',
   ]);
 
+  formatFileSize(bytes: number): string {
+    if (bytes >= 1_073_741_824) return (bytes / 1_073_741_824).toFixed(2) + ' GB';
+    if (bytes >= 1_048_576) return (bytes / 1_048_576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return bytes + ' B';
+  }
+
   getIcon(node: FileTreeNode): string {
     if (!node.entry.isDirectory) {
       const ext = node.entry.name.split('.').pop()?.toLowerCase() ?? '';

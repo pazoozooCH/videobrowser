@@ -6,6 +6,7 @@ export interface FileEntry {
   isEncoded: boolean;
   decodedName: string | null;
   hasChildren: boolean;
+  fileSize: number;
 }
 
 export interface FileTreeNode {

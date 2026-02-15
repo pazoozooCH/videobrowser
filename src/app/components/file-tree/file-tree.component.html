@@ -13,6 +13,9 @@
     <span class="arrow">{{ getArrow(node) }}</span>
     <span class="icon">{{ getIcon(node) }}</span>
     <span class="name">{{ node.entry.name }}</span>
+    @if (!node.entry.isDirectory) {
+      <span class="file-size">{{ formatFileSize(node.entry.fileSize) }}</span>
+    }
     @if (node.entry.isEncoded) {
       <span class="physical-name">{{ node.entry.physicalName }}</span>
     }

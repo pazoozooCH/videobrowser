@@ -28,6 +28,7 @@ export class FileTreeService {
       isEncoded: false,
       decodedName: null,
       hasChildren: entries.length > 0,
+      fileSize: 0,
     };
 
     const root: FileTreeNode = {

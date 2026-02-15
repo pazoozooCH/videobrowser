@@ -16,4 +16,6 @@ pub struct FileEntry {
     pub decoded_name: Option<String>,
     /// Whether this directory has children (for lazy loading)
     pub has_children: bool,
+    /// File size in bytes (0 for directories)
+    pub file_size: u64,
 }

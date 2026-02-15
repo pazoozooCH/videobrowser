@@ -63,6 +63,17 @@
   white-space: nowrap;
 }
 
+.file-size {
+  color: #aaa;
+  font-size: 11px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.tree-node.selected .file-size {
+  color: #b0c4de;
+}
+
 .physical-name {
   color: #999;
   font-size: 12px;
