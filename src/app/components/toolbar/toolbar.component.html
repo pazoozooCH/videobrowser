@@ -1,4 +1,6 @@
 <div class="toolbar">
   <button (click)="openFolder()">Open Folder</button>
   <button (click)="searchService.searchActive.set(!searchService.searchActive())">Search</button>
+  <div class="spacer"></div>
+  <button [class.active]="previewService.active()" (click)="togglePreview()">Preview</button>
 </div>

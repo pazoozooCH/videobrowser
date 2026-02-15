@@ -1,4 +1,4 @@
-import { Component, HostListener, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, signal, viewChild } from '@angular/core';
 
 export interface ContextMenuItem {
   label: string;
@@ -14,6 +14,8 @@ export interface ContextMenuItem {
   styleUrl: './context-menu.component.css',
 })
 export class ContextMenuComponent {
+  private readonly menuEl = viewChild<ElementRef<HTMLElement>>('menu');
+
   readonly visible = signal(false);
   readonly position = signal({ x: 0, y: 0 });
   readonly items = signal<ContextMenuItem[]>([]);
@@ -22,6 +24,29 @@ export class ContextMenuComponent {
     this.position.set({ x, y });
     this.items.set(items);
     this.visible.set(true);
+
+    requestAnimationFrame(() => {
+      const el = this.menuEl()?.nativeElement;
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      let adjustedX = x;
+      let adjustedY = y;
+
+      if (rect.bottom > vh) {
+        adjustedY = y - rect.height;
+      }
+      if (rect.right > vw) {
+        adjustedX = x - rect.width;
+      }
+      if (adjustedX < 0) adjustedX = 0;
+      if (adjustedY < 0) adjustedY = 0;
+
+      this.position.set({ x: adjustedX, y: adjustedY });
+    });
   }
 
   hide(): void {
