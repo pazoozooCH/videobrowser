@@ -6,13 +6,19 @@ use base64::engine::general_purpose::STANDARD;
 
 use crate::models::video_frame::VideoFrame;
 
-fn get_duration_secs(path: &str) -> Result<f64, String> {
+#[tauri::command]
+pub fn get_video_duration(path: String) -> Result<f64, String> {
+    let file_path = Path::new(&path);
+    if !file_path.is_file() {
+        return Err(format!("Not a file: {}", path));
+    }
+
     let output = Command::new("ffprobe")
         .args([
             "-v", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
-            path,
+            &path,
         ])
         .output()
         .map_err(|e| format!("Failed to run ffprobe: {}", e))?;
@@ -29,11 +35,17 @@ fn get_duration_secs(path: &str) -> Result<f64, String> {
         .map_err(|e| format!("Failed to parse duration '{}': {}", stdout.trim(), e))
 }
 
-fn extract_frame(path: &str, timestamp: f64) -> Result<Vec<u8>, String> {
+#[tauri::command]
+pub fn extract_video_frame(path: String, timestamp_secs: f64, index: u32) -> Result<VideoFrame, String> {
+    let file_path = Path::new(&path);
+    if !file_path.is_file() {
+        return Err(format!("Not a file: {}", path));
+    }
+
     let output = Command::new("ffmpeg")
         .args([
-            "-ss", &timestamp.to_string(),
-            "-i", path,
+            "-ss", &timestamp_secs.to_string(),
+            "-i", &path,
             "-frames:v", "1",
             "-f", "image2pipe",
             "-vcodec", "mjpeg",
@@ -44,14 +56,18 @@ fn extract_frame(path: &str, timestamp: f64) -> Result<Vec<u8>, String> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("ffmpeg failed at {}s: {}", timestamp, stderr));
+        return Err(format!("ffmpeg failed at {}s: {}", timestamp_secs, stderr));
     }
 
     if output.stdout.is_empty() {
-        return Err(format!("ffmpeg produced no output at {}s", timestamp));
+        return Err(format!("ffmpeg produced no output at {}s", timestamp_secs));
     }
 
-    Ok(output.stdout)
+    Ok(VideoFrame {
+        index,
+        timestamp_secs,
+        data_base64: STANDARD.encode(&output.stdout),
+    })
 }
 
 pub fn calculate_timestamps(duration: f64, mode_type: &str, count: Option<u32>, minutes: Option<f64>) -> Result<Vec<f64>, String> {
@@ -80,37 +96,6 @@ pub fn calculate_timestamps(duration: f64, mode_type: &str, count: Option<u32>, 
         }
         _ => Err(format!("Unknown mode type: {}", mode_type)),
     }
-}
-
-#[tauri::command]
-pub fn generate_video_frames(path: String, mode: serde_json::Value) -> Result<Vec<VideoFrame>, String> {
-    let file_path = Path::new(&path);
-    if !file_path.is_file() {
-        return Err(format!("Not a file: {}", path));
-    }
-
-    let duration = get_duration_secs(&path)?;
-
-    let mode_type = mode.get("type")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'type' in mode")?;
-
-    let count = mode.get("count").and_then(|v| v.as_u64()).map(|v| v as u32);
-    let minutes = mode.get("minutes").and_then(|v| v.as_f64());
-
-    let timestamps = calculate_timestamps(duration, mode_type, count, minutes)?;
-
-    let mut frames = Vec::new();
-    for (i, ts) in timestamps.iter().enumerate() {
-        let jpeg_bytes = extract_frame(&path, *ts)?;
-        frames.push(VideoFrame {
-            index: i as u32,
-            timestamp_secs: *ts,
-            data_base64: STANDARD.encode(&jpeg_bytes),
-        });
-    }
-
-    Ok(frames)
 }
 
 #[cfg(test)]

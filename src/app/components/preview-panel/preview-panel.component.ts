@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { PreviewService } from '../../services/preview.service';
-import { FrameMode, VideoFrame } from '../../models/video-frame.model';
+import { FrameMode } from '../../models/video-frame.model';
 
 @Component({
   selector: 'app-preview-panel',

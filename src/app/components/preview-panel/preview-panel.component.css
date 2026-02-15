@@ -67,13 +67,10 @@
   padding: 12px;
 }
 
-.spinner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100px;
+.progress {
+  padding: 4px 0 8px;
   color: #666;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .error {
