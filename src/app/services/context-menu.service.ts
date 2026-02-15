@@ -5,11 +5,15 @@ import { ContextMenuComponent, ContextMenuItem } from '../components/context-men
 import { RenameDialogComponent } from '../components/rename-dialog/rename-dialog.component';
 import { FileTreeService } from './file-tree.service';
 import { FileSystemService } from './file-system.service';
+import { PreviewService } from './preview.service';
+
+const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'webm', 'mov'];
 
 @Injectable({ providedIn: 'root' })
 export class ContextMenuService {
   private readonly fileTreeService = inject(FileTreeService);
   private readonly fs = inject(FileSystemService);
+  private readonly previewService = inject(PreviewService);
 
   private menuComponent: ContextMenuComponent | null = null;
   private renameDialog: RenameDialogComponent | null = null;
@@ -34,11 +38,19 @@ export class ContextMenuService {
     const moveSource = this.fileTreeService.moveSource();
     const canMoveHere = this.fileTreeService.canMoveTo(node);
 
+    const ext = node.entry.name.split('.').pop()?.toLowerCase() ?? '';
+    const isVideo = !node.entry.isDirectory && VIDEO_EXTENSIONS.includes(ext);
+
     const items: ContextMenuItem[] = [
       {
         label: 'Open in VLC Player',
         enabled: !node.entry.isDirectory,
         action: () => this.fs.openInVlc(node.entry.path),
+      },
+      {
+        label: 'Video Preview',
+        enabled: isVideo,
+        action: () => this.previewService.generateFrames(node.entry.path),
       },
       {
         label: 'Show in File Manager',

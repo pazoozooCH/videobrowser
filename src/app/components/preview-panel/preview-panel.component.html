@@ -1,0 +1,35 @@
+@if (preview.active()) {
+  <div class="preview-panel">
+    <div class="header">
+      <span class="title">Video Preview</span>
+      <button class="close-btn" (click)="preview.close()">Close</button>
+    </div>
+
+    <div class="mode-bar">
+      @for (preset of presets; track preset.label) {
+        <button
+          class="mode-btn"
+          [class.active]="isActiveMode(preset.mode)"
+          (click)="selectMode(preset.mode)"
+        >{{ preset.label }}</button>
+      }
+    </div>
+
+    <div class="content">
+      @if (preview.loading()) {
+        <div class="spinner">Generating frames...</div>
+      } @else if (preview.error(); as error) {
+        <div class="error">{{ error }}</div>
+      } @else {
+        <div class="grid">
+          @for (frame of preview.frames(); track frame.index) {
+            <div class="frame">
+              <img [src]="'data:image/jpeg;base64,' + frame.dataBase64" [alt]="'Frame at ' + formatTimestamp(frame.timestampSecs)" />
+              <span class="timestamp">{{ formatTimestamp(frame.timestampSecs) }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

@@ -1,14 +1,18 @@
 <app-toolbar />
 <app-search-panel />
 
-@if (fileTreeService.root(); as root) {
-  <div class="tree-container">
-    <div class="root-path">{{ root.entry.path }}</div>
-    <app-file-tree />
-  </div>
-} @else {
-  <div class="empty-state">Click "Open Folder" to browse a directory.</div>
-}
+<div class="main-content">
+  @if (fileTreeService.root(); as root) {
+    <div class="tree-container">
+      <div class="root-path">{{ root.entry.path }}</div>
+      <app-file-tree />
+    </div>
+  } @else {
+    <div class="empty-state">Click "Open Folder" to browse a directory.</div>
+  }
+
+  <app-preview-panel />
+</div>
 
 <app-context-menu />
 <app-rename-dialog />

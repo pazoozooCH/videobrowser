@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { FileEntry } from '../models/file-node.model';
+import { FrameMode, VideoFrame } from '../models/video-frame.model';
 
 @Injectable({ providedIn: 'root' })
 export class FileSystemService {
@@ -51,6 +52,10 @@ export class FileSystemService {
 
   async searchFiles(path: string, pattern: string): Promise<FileEntry[]> {
     return invoke<FileEntry[]>('search_files', { path, pattern });
+  }
+
+  async generateVideoFrames(path: string, mode: FrameMode): Promise<VideoFrame[]> {
+    return invoke<VideoFrame[]>('generate_video_frames', { path, mode });
   }
 
   async pickFolder(): Promise<string | null> {

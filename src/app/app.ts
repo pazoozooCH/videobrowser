@@ -5,13 +5,14 @@ import { FileTreeComponent } from './components/file-tree/file-tree.component';
 import { ContextMenuComponent } from './components/context-menu/context-menu.component';
 import { RenameDialogComponent } from './components/rename-dialog/rename-dialog.component';
 import { SearchPanelComponent } from './components/search-panel/search-panel.component';
+import { PreviewPanelComponent } from './components/preview-panel/preview-panel.component';
 import { FileTreeService } from './services/file-tree.service';
 import { ContextMenuService } from './services/context-menu.service';
 import { SearchService } from './services/search.service';
 
 @Component({
   selector: 'app-root',
-  imports: [ToolbarComponent, FileTreeComponent, ContextMenuComponent, RenameDialogComponent, SearchPanelComponent],
+  imports: [ToolbarComponent, FileTreeComponent, ContextMenuComponent, RenameDialogComponent, SearchPanelComponent, PreviewPanelComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
