@@ -113,8 +113,16 @@ export class FileTreeComponent {
     return node.isExpanded ? '▾' : '▸';
   }
 
+  private static readonly VIDEO_EXTENSIONS = new Set([
+    'mp4', 'mkv', 'avi', 'webm', 'mov', 'mpg', 'mpeg',
+  ]);
+
   getIcon(node: FileTreeNode): string {
-    if (!node.entry.isDirectory) return '📄';
+    if (!node.entry.isDirectory) {
+      const ext = node.entry.name.split('.').pop()?.toLowerCase() ?? '';
+      if (FileTreeComponent.VIDEO_EXTENSIONS.has(ext)) return '🎬';
+      return '📄';
+    }
     return node.isExpanded ? '📂' : '📁';
   }
 }
