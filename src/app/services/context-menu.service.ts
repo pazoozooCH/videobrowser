@@ -7,7 +7,7 @@ import { FileTreeService } from './file-tree.service';
 import { FileSystemService } from './file-system.service';
 import { PreviewService } from './preview.service';
 
-const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'webm', 'mov'];
+const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'mpg', 'mpeg'];
 
 @Injectable({ providedIn: 'root' })
 export class ContextMenuService {

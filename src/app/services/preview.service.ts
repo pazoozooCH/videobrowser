@@ -1,10 +1,25 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { effect, inject, Injectable, signal } from '@angular/core';
 import { FrameMode, VideoFrame } from '../models/video-frame.model';
 import { FileSystemService } from './file-system.service';
+import { FileTreeService } from './file-tree.service';
+
+const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'mpg', 'mpeg'];
 
 @Injectable({ providedIn: 'root' })
 export class PreviewService {
   private readonly fs = inject(FileSystemService);
+  private readonly fileTreeService = inject(FileTreeService);
+
+  constructor() {
+    effect(() => {
+      const selectedPath = this.fileTreeService.selectedPath();
+      if (!this.active() || !selectedPath) return;
+      const ext = selectedPath.split('.').pop()?.toLowerCase() ?? '';
+      if (VIDEO_EXTENSIONS.includes(ext) && selectedPath !== this.currentPath()) {
+        this.generateFrames(selectedPath);
+      }
+    });
+  }
 
   readonly active = signal(false);
   readonly loading = signal(false);
