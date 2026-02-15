@@ -1,4 +1,4 @@
-import { Component, HostListener, inject, viewChild } from '@angular/core';
+import { Component, DestroyRef, inject, viewChild } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { ToolbarComponent } from './components/toolbar/toolbar.component';
 import { FileTreeComponent } from './components/file-tree/file-tree.component';
@@ -18,24 +18,27 @@ import { SearchService } from './services/search.service';
 export class App {
   protected readonly fileTreeService = inject(FileTreeService);
   private readonly contextMenuService = inject(ContextMenuService);
-  protected readonly searchService = inject(SearchService);
+  private readonly searchService = inject(SearchService);
   private readonly contextMenu = viewChild.required(ContextMenuComponent);
   private readonly renameDialog = viewChild.required(RenameDialogComponent);
   private readonly searchPanel = viewChild(SearchPanelComponent);
+
+  constructor() {
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key === 'f') {
+        event.preventDefault();
+        this.searchService.searchActive.set(true);
+        requestAnimationFrame(() => this.searchPanel()?.focusInput());
+      }
+    };
+    document.addEventListener('keydown', onKeydown);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('keydown', onKeydown));
+  }
 
   ngAfterViewInit(): void {
     this.contextMenuService.register(this.contextMenu());
     this.contextMenuService.registerRenameDialog(this.renameDialog());
     this.openCliPath();
-  }
-
-  @HostListener('document:keydown', ['$event'])
-  onKeydown(event: KeyboardEvent): void {
-    if (event.ctrlKey && event.key === 'f') {
-      event.preventDefault();
-      this.searchService.searchActive.set(true);
-      requestAnimationFrame(() => this.searchPanel()?.focusInput());
-    }
   }
 
   private async openCliPath(): Promise<void> {
