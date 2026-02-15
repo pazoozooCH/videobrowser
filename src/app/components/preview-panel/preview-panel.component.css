@@ -35,6 +35,30 @@
   background: #eee;
 }
 
+.info-section {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 16px;
+  font-size: 12px;
+}
+
+.info-row {
+  display: flex;
+  gap: 6px;
+}
+
+.info-label {
+  color: #888;
+}
+
+.info-value {
+  color: #333;
+  font-family: monospace;
+}
+
 .mode-bar {
   display: flex;
   gap: 4px;

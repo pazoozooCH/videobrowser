@@ -36,4 +36,17 @@ export class PreviewPanelComponent {
     }
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
+
+  formatFileSize(bytes: number): string {
+    if (bytes >= 1_073_741_824) return (bytes / 1_073_741_824).toFixed(2) + ' GB';
+    if (bytes >= 1_048_576) return (bytes / 1_048_576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return bytes + ' B';
+  }
+
+  formatBitrate(bps: number): string {
+    if (bps >= 1_000_000) return (bps / 1_000_000).toFixed(1) + ' Mbps';
+    if (bps >= 1_000) return (bps / 1_000).toFixed(0) + ' kbps';
+    return bps + ' bps';
+  }
 }

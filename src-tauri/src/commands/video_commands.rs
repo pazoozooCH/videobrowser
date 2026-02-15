@@ -4,20 +4,26 @@ use std::process::Command;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
-use crate::models::video_frame::VideoFrame;
+use crate::models::video_frame::{VideoFrame, VideoInfo};
 
 #[tauri::command]
-pub fn get_video_duration(path: String) -> Result<f64, String> {
+pub fn get_video_info(path: String) -> Result<VideoInfo, String> {
     let file_path = Path::new(&path);
     if !file_path.is_file() {
         return Err(format!("Not a file: {}", path));
     }
 
+    let file_size_bytes = std::fs::metadata(&path)
+        .map_err(|e| format!("Failed to read file metadata: {}", e))?
+        .len();
+
     let output = Command::new("ffprobe")
         .args([
             "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "-show_entries", "format=duration,bit_rate",
+            "-show_entries", "stream=width,height,display_aspect_ratio,codec_name,r_frame_rate",
+            "-select_streams", "v:0",
+            "-of", "json",
             &path,
         ])
         .output()
@@ -28,11 +34,54 @@ pub fn get_video_duration(path: String) -> Result<f64, String> {
         return Err(format!("ffprobe failed: {}", stderr));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    stdout
-        .trim()
-        .parse::<f64>()
-        .map_err(|e| format!("Failed to parse duration '{}': {}", stdout.trim(), e))
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse ffprobe JSON: {}", e))?;
+
+    let format = &json["format"];
+    let stream = json["streams"].as_array().and_then(|s| s.first());
+
+    let duration_secs = format["duration"]
+        .as_str()
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0);
+
+    let bitrate = format["bit_rate"]
+        .as_str()
+        .and_then(|s| s.parse::<u64>().ok());
+
+    let width = stream.and_then(|s| s["width"].as_u64()).map(|v| v as u32);
+    let height = stream.and_then(|s| s["height"].as_u64()).map(|v| v as u32);
+    let display_aspect_ratio = stream
+        .and_then(|s| s["display_aspect_ratio"].as_str())
+        .filter(|s| *s != "0:1")
+        .map(|s| s.to_string());
+    let codec = stream.and_then(|s| s["codec_name"].as_str()).map(|s| s.to_string());
+    let framerate = stream
+        .and_then(|s| s["r_frame_rate"].as_str())
+        .map(|s| simplify_framerate(s));
+
+    Ok(VideoInfo {
+        duration_secs,
+        file_size_bytes,
+        width,
+        height,
+        display_aspect_ratio,
+        codec,
+        bitrate,
+        framerate,
+    })
+}
+
+fn simplify_framerate(rate: &str) -> String {
+    if let Some((num, den)) = rate.split_once('/') {
+        if let (Ok(n), Ok(d)) = (num.parse::<f64>(), den.parse::<f64>()) {
+            if d > 0.0 {
+                let fps = n / d;
+                return format!("{:.2}", fps);
+            }
+        }
+    }
+    rate.to_string()
 }
 
 #[tauri::command]
@@ -70,7 +119,8 @@ pub fn extract_video_frame(path: String, timestamp_secs: f64, index: u32) -> Res
     })
 }
 
-pub fn calculate_timestamps(duration: f64, mode_type: &str, count: Option<u32>, minutes: Option<f64>) -> Result<Vec<f64>, String> {
+#[cfg(test)]
+fn calculate_timestamps(duration: f64, mode_type: &str, count: Option<u32>, minutes: Option<f64>) -> Result<Vec<f64>, String> {
     match mode_type {
         "fixed" => {
             let count = count.ok_or("Missing 'count' for fixed mode")?;

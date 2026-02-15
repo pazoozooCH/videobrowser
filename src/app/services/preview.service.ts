@@ -1,5 +1,5 @@
 import { effect, inject, Injectable, signal } from '@angular/core';
-import { FrameMode, VideoFrame } from '../models/video-frame.model';
+import { FrameMode, VideoFrame, VideoInfo } from '../models/video-frame.model';
 import { FileSystemService } from './file-system.service';
 import { FileTreeService } from './file-tree.service';
 
@@ -29,6 +29,7 @@ export class PreviewService {
   readonly currentPath = signal<string | null>(null);
   readonly mode = signal<FrameMode>({ type: 'fixed', count: 9 });
   readonly totalFrames = signal(0);
+  readonly info = signal<VideoInfo | null>(null);
 
   async generateFrames(path: string): Promise<void> {
     const id = ++this.generationId;
@@ -39,12 +40,14 @@ export class PreviewService {
     this.frames.set([]);
     this.currentPath.set(path);
     this.totalFrames.set(0);
+    this.info.set(null);
 
     try {
-      const duration = await this.fs.getVideoDuration(path);
+      const videoInfo = await this.fs.getVideoInfo(path);
       if (id !== this.generationId) return;
 
-      const timestamps = this.calculateTimestamps(duration, this.mode());
+      this.info.set(videoInfo);
+      const timestamps = this.calculateTimestamps(videoInfo.durationSecs, this.mode());
       this.totalFrames.set(timestamps.length);
 
       for (let i = 0; i < timestamps.length; i++) {
@@ -80,6 +83,7 @@ export class PreviewService {
     this.error.set(null);
     this.currentPath.set(null);
     this.totalFrames.set(0);
+    this.info.set(null);
   }
 
   private calculateTimestamps(duration: number, mode: FrameMode): number[] {

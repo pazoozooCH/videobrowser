@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { FileEntry } from '../models/file-node.model';
-import { VideoFrame } from '../models/video-frame.model';
+import { VideoFrame, VideoInfo } from '../models/video-frame.model';
 
 @Injectable({ providedIn: 'root' })
 export class FileSystemService {
@@ -54,8 +54,8 @@ export class FileSystemService {
     return invoke<FileEntry[]>('search_files', { path, pattern });
   }
 
-  async getVideoDuration(path: string): Promise<number> {
-    return invoke<number>('get_video_duration', { path });
+  async getVideoInfo(path: string): Promise<VideoInfo> {
+    return invoke<VideoInfo>('get_video_info', { path });
   }
 
   async extractVideoFrame(path: string, timestampSecs: number, index: number): Promise<VideoFrame> {
