@@ -1,6 +1,7 @@
 .preview-panel {
   width: 600px;
   min-width: 400px;
+  height: 100%;
   border-left: 1px solid #ddd;
   display: flex;
   flex-direction: column;
