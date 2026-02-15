@@ -14,9 +14,11 @@ export class PreviewService {
   constructor() {
     effect(() => {
       const selectedPath = this.fileTreeService.selectedPath();
-      if (!this.active() || !selectedPath) return;
-      const ext = selectedPath.split('.').pop()?.toLowerCase() ?? '';
-      if (VIDEO_EXTENSIONS.includes(ext) && selectedPath !== this.currentPath()) {
+      if (!this.active() || !selectedPath || selectedPath === this.currentPath()) return;
+      const node = this.fileTreeService.visibleNodes().find(n => n.entry.path === selectedPath);
+      if (!node || node.entry.isDirectory) return;
+      const ext = node.entry.name.split('.').pop()?.toLowerCase() ?? '';
+      if (VIDEO_EXTENSIONS.includes(ext)) {
         this.generateFrames(selectedPath);
       }
     });
