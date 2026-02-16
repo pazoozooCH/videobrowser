@@ -4,6 +4,7 @@ use std::process::Command;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
+use crate::cache::{self, CacheState};
 use crate::models::video_frame::{VideoFrame, VideoInfo};
 
 #[tauri::command]
@@ -85,11 +86,35 @@ fn simplify_framerate(rate: &str) -> String {
 }
 
 #[tauri::command]
-pub fn extract_video_frame(path: String, timestamp_secs: f64, index: u32) -> Result<VideoFrame, String> {
+pub fn extract_video_frame(
+    path: String,
+    timestamp_secs: f64,
+    index: u32,
+    cache_state: tauri::State<CacheState>,
+) -> Result<VideoFrame, String> {
     let file_path = Path::new(&path);
     if !file_path.is_file() {
         return Err(format!("Not a file: {}", path));
     }
+
+    let metadata = std::fs::metadata(&path)
+        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
+    let modified = metadata
+        .modified()
+        .map_err(|e| format!("Failed to read mtime: {}", e))?;
+    let modified_str = format!("{:?}", modified);
+
+    let conn = cache_state.0.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+
+    if let Some(jpeg_data) = cache::get_cached_frame(&conn, &path, &modified_str, timestamp_secs) {
+        return Ok(VideoFrame {
+            index,
+            timestamp_secs,
+            data_base64: STANDARD.encode(&jpeg_data),
+        });
+    }
+
+    drop(conn);
 
     let output = Command::new("ffmpeg")
         .args([
@@ -111,6 +136,9 @@ pub fn extract_video_frame(path: String, timestamp_secs: f64, index: u32) -> Res
     if output.stdout.is_empty() {
         return Err(format!("ffmpeg produced no output at {}s", timestamp_secs));
     }
+
+    let conn = cache_state.0.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+    cache::store_frame(&conn, &path, &modified_str, timestamp_secs, &output.stdout);
 
     Ok(VideoFrame {
         index,

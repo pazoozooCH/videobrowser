@@ -1,8 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod cache;
 mod commands;
 mod encoding;
 mod models;
+
+use tauri::Manager;
 
 use commands::fs_commands;
 use commands::video_commands;
@@ -10,6 +13,16 @@ use commands::video_commands;
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to resolve app data dir");
+            let cache_state = cache::init_db(&data_dir)
+                .expect("failed to initialize frame cache");
+            app.manage(cache_state);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             fs_commands::read_directory,
             fs_commands::encode_node,
