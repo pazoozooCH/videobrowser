@@ -1,4 +1,4 @@
-import { AfterViewChecked, Component, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { AfterViewChecked, Component, DestroyRef, ElementRef, inject, NgZone, signal, viewChild } from '@angular/core';
 import { PreviewService } from '../../services/preview.service';
 import { FileSystemService } from '../../services/file-system.service';
 import { FrameMode } from '../../models/video-frame.model';
@@ -15,6 +15,7 @@ export class PreviewPanelComponent implements AfterViewChecked {
   protected readonly preview = inject(PreviewService);
   private readonly fs = inject(FileSystemService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly zone = inject(NgZone);
 
   protected readonly panelWidth = signal(600);
   private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
@@ -73,7 +74,7 @@ export class PreviewPanelComponent implements AfterViewChecked {
         }
 
         if (changed) {
-          this.visibleEntries.set(visible);
+          this.zone.run(() => this.visibleEntries.set(visible));
         }
       },
       {
@@ -88,13 +89,29 @@ export class PreviewPanelComponent implements AfterViewChecked {
     const container = this.scrollContainer()?.nativeElement;
     if (!container) return;
 
+    const visible = this.visibleEntries();
+    let added = false;
+
     const entryElements = container.querySelectorAll('[data-file-path]');
     entryElements.forEach((el) => {
       if (!this.observedElements.has(el)) {
         this.observer!.observe(el);
         this.observedElements.add(el);
+        // New entries are visible by default; the observer will hide them
+        // once they scroll out of viewport + margin
+        const filePath = (el as HTMLElement).dataset['filePath'];
+        if (filePath && !visible.has(filePath)) {
+          if (!added) {
+            added = true;
+          }
+          visible.add(filePath);
+        }
       }
     });
+
+    if (added) {
+      this.visibleEntries.set(new Set(visible));
+    }
   }
 
   private cleanupObserver(): void {
