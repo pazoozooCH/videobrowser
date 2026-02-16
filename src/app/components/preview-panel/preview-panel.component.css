@@ -1,11 +1,26 @@
 .preview-panel {
-  width: 600px;
+  position: relative;
   min-width: 400px;
   height: 100%;
   border-left: 1px solid #ddd;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  background: rgba(74, 144, 217, 0.3);
 }
 
 .header {
@@ -159,7 +174,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 8px;
 }
 

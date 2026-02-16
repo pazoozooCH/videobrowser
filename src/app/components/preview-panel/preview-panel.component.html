@@ -1,5 +1,6 @@
 @if (preview.active()) {
-  <div class="preview-panel">
+  <div class="preview-panel" #panel [style.width.px]="panelWidth()">
+    <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
     <div class="header">
       <span class="title">Video Preview</span>
       <button class="close-btn" (click)="preview.close()">Close</button>

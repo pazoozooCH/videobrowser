@@ -1,7 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { PreviewService } from '../../services/preview.service';
 import { FileSystemService } from '../../services/file-system.service';
 import { FrameMode } from '../../models/video-frame.model';
+
+const MIN_PANEL_WIDTH = 400;
+const MIN_TREE_WIDTH = 250;
 
 @Component({
   selector: 'app-preview-panel',
@@ -11,6 +14,9 @@ import { FrameMode } from '../../models/video-frame.model';
 export class PreviewPanelComponent {
   protected readonly preview = inject(PreviewService);
   private readonly fs = inject(FileSystemService);
+
+  protected readonly panelWidth = signal(600);
+  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
 
   readonly presets: { label: string; mode: FrameMode }[] = [
     { label: '9 frames', mode: { type: 'fixed', count: 9 } },
@@ -27,6 +33,32 @@ export class PreviewPanelComponent {
   isActiveMode(mode: FrameMode): boolean {
     const current = this.preview.mode();
     return JSON.stringify(current) === JSON.stringify(mode);
+  }
+
+  onResizeStart(event: MouseEvent): void {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = this.panelWidth();
+    const parentWidth = this.panel()?.nativeElement.parentElement?.clientWidth ?? window.innerWidth;
+    const maxWidth = parentWidth - MIN_TREE_WIDTH;
+
+    const onMouseMove = (e: MouseEvent) => {
+      const delta = startX - e.clientX;
+      const newWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxWidth, startWidth + delta));
+      this.panelWidth.set(newWidth);
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
   }
 
   formatTimestamp(secs: number): string {
