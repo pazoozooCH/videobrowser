@@ -39,8 +39,9 @@ export class PreviewPanelComponent {
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = this.panelWidth();
-    const parentWidth = this.panel()?.nativeElement.parentElement?.clientWidth ?? window.innerWidth;
-    const maxWidth = parentWidth - MIN_TREE_WIDTH;
+    const mainContent = this.panel()?.nativeElement.closest('.main-content') as HTMLElement | null;
+    const availableWidth = mainContent?.clientWidth ?? window.innerWidth;
+    const maxWidth = availableWidth - MIN_TREE_WIDTH;
 
     const onMouseMove = (e: MouseEvent) => {
       const delta = startX - e.clientX;
