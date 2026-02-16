@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { PreviewService } from '../../services/preview.service';
+import { FileSystemService } from '../../services/file-system.service';
 import { FrameMode } from '../../models/video-frame.model';
 
 @Component({
@@ -9,6 +10,7 @@ import { FrameMode } from '../../models/video-frame.model';
 })
 export class PreviewPanelComponent {
   protected readonly preview = inject(PreviewService);
+  private readonly fs = inject(FileSystemService);
 
   readonly presets: { label: string; mode: FrameMode }[] = [
     { label: '9 frames', mode: { type: 'fixed', count: 9 } },
@@ -48,5 +50,9 @@ export class PreviewPanelComponent {
     if (bps >= 1_000_000) return (bps / 1_000_000).toFixed(1) + ' Mbps';
     if (bps >= 1_000) return (bps / 1_000).toFixed(0) + ' kbps';
     return bps + ' bps';
+  }
+
+  openInVlc(path: string, startTime?: number): void {
+    this.fs.openInVlc(path, startTime);
   }
 }

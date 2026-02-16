@@ -305,7 +305,7 @@ pub fn show_in_file_manager(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_in_vlc(path: String) -> Result<(), String> {
+pub fn open_in_vlc(path: String, start_time: Option<f64>) -> Result<(), String> {
     let node_path = Path::new(&path);
     if !node_path.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -313,16 +313,22 @@ pub fn open_in_vlc(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
-        Command::new("vlc")
-            .arg(&path)
+        let mut cmd = Command::new("vlc");
+        if let Some(t) = start_time {
+            cmd.arg(format!("--start-time={}", t));
+        }
+        cmd.arg(&path)
             .spawn()
             .map_err(|e| format!("Failed to open VLC: {}", e))?;
     }
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("C:/Program Files/VideoLAN/VLC/vlc.exe")
-            .arg(format!("file:///{}", path.replace('\\', "/")))
+        let mut cmd = Command::new("C:/Program Files/VideoLAN/VLC/vlc.exe");
+        if let Some(t) = start_time {
+            cmd.arg(format!("--start-time={}", t));
+        }
+        cmd.arg(format!("file:///{}", path.replace('\\', "/")))
             .spawn()
             .map_err(|e| format!("Failed to open VLC: {}", e))?;
     }

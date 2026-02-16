@@ -26,7 +26,13 @@
           }
           @for (entry of preview.folderEntries(); track entry.filePath) {
             <div class="folder-entry">
-              <div class="folder-entry-header">{{ entry.relativePath }}</div>
+              <div class="folder-entry-header">
+                <span class="decoded-name">{{ entry.decodedRelativePath }}</span>
+                @if (entry.decodedRelativePath !== entry.relativePath) {
+                  <span class="encoded-name">{{ entry.relativePath }}</span>
+                }
+                <button class="vlc-btn" (click)="openInVlc(entry.filePath)">VLC</button>
+              </div>
               @if (entry.info; as info) {
                 <div class="info-section">
                   <div class="info-row">
@@ -74,7 +80,7 @@
               }
               <div class="grid">
                 @for (frame of entry.frames; track frame.index) {
-                  <div class="frame">
+                  <div class="frame clickable" (click)="openInVlc(entry.filePath, frame.timestampSecs)">
                     <img [src]="'data:image/jpeg;base64,' + frame.dataBase64" [alt]="'Frame at ' + formatTimestamp(frame.timestampSecs)" />
                     <span class="timestamp">{{ formatTimestamp(frame.timestampSecs) }}</span>
                   </div>
@@ -126,6 +132,7 @@
               <span class="info-value">{{ info.framerate }} fps</span>
             </div>
           }
+          <button class="vlc-btn" (click)="openInVlc(preview.currentPath()!)">VLC</button>
         </div>
       }
 
@@ -138,7 +145,7 @@
           }
           <div class="grid">
             @for (frame of preview.frames(); track frame.index) {
-              <div class="frame">
+              <div class="frame clickable" (click)="openInVlc(preview.currentPath()!, frame.timestampSecs)">
                 <img [src]="'data:image/jpeg;base64,' + frame.dataBase64" [alt]="'Frame at ' + formatTimestamp(frame.timestampSecs)" />
                 <span class="timestamp">{{ formatTimestamp(frame.timestampSecs) }}</span>
               </div>

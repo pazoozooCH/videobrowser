@@ -110,9 +110,12 @@ export class PreviewService {
           ? filePath.substring(folderPath.length).replace(/^\//, '')
           : filePath;
 
+        const decodedRelativePath = this.decodeRelativePath(relativePath);
+
         const entry: FolderVideoEntry = {
           filePath,
           relativePath,
+          decodedRelativePath,
           info: null,
           frames: [],
           error: null,
@@ -191,6 +194,19 @@ export class PreviewService {
     this.folderMode.set(false);
     this.folderEntries.set([]);
     this.folderPath.set(null);
+  }
+
+  private decodeRelativePath(relativePath: string): string {
+    return relativePath.split('/').map(segment => {
+      if (segment.startsWith('.dat_')) {
+        try {
+          return atob(segment.substring(5));
+        } catch {
+          return segment;
+        }
+      }
+      return segment;
+    }).join('/');
   }
 
   private yield(): Promise<void> {

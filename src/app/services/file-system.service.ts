@@ -42,8 +42,8 @@ export class FileSystemService {
     return invoke<void>('show_in_file_manager', { path });
   }
 
-  async openInVlc(path: string): Promise<void> {
-    return invoke<void>('open_in_vlc', { path });
+  async openInVlc(path: string, startTime?: number): Promise<void> {
+    return invoke<void>('open_in_vlc', { path, startTime: startTime ?? null });
   }
 
   async copyToClipboard(text: string): Promise<void> {

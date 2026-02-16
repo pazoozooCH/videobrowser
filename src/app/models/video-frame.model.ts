@@ -22,6 +22,7 @@ export type FrameMode =
 export interface FolderVideoEntry {
   filePath: string;
   relativePath: string;
+  decodedRelativePath: string;
   info: VideoInfo | null;
   frames: VideoFrame[];
   error: string | null;
