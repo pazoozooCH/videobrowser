@@ -1,5 +1,5 @@
 import { effect, inject, Injectable, signal } from '@angular/core';
-import { FrameMode, VideoFrame, VideoInfo } from '../models/video-frame.model';
+import { FolderVideoEntry, FrameMode, VideoFrame, VideoInfo } from '../models/video-frame.model';
 import { FileSystemService } from './file-system.service';
 import { FileTreeService } from './file-tree.service';
 
@@ -14,7 +14,7 @@ export class PreviewService {
   constructor() {
     effect(() => {
       const selectedPath = this.fileTreeService.selectedPath();
-      if (!this.active() || !selectedPath || selectedPath === this.currentPath()) return;
+      if (!this.active() || this.folderMode() || !selectedPath || selectedPath === this.currentPath()) return;
       const node = this.fileTreeService.visibleNodes().find(n => n.entry.path === selectedPath);
       if (!node || node.entry.isDirectory) return;
       const ext = node.entry.name.split('.').pop()?.toLowerCase() ?? '';
@@ -33,6 +33,11 @@ export class PreviewService {
   readonly totalFrames = signal(0);
   readonly info = signal<VideoInfo | null>(null);
 
+  // Folder mode signals
+  readonly folderMode = signal(false);
+  readonly folderEntries = signal<FolderVideoEntry[]>([]);
+  readonly folderPath = signal<string | null>(null);
+
   async generateFrames(path: string): Promise<void> {
     const id = ++this.generationId;
 
@@ -43,6 +48,9 @@ export class PreviewService {
     this.currentPath.set(path);
     this.totalFrames.set(0);
     this.info.set(null);
+    this.folderMode.set(false);
+    this.folderEntries.set([]);
+    this.folderPath.set(null);
 
     try {
       const videoInfo = await this.fs.getVideoInfo(path);
@@ -70,10 +78,102 @@ export class PreviewService {
     }
   }
 
+  async generateFolderFrames(folderPath: string): Promise<void> {
+    const id = ++this.generationId;
+
+    this.active.set(true);
+    this.loading.set(true);
+    this.error.set(null);
+    this.frames.set([]);
+    this.currentPath.set(null);
+    this.info.set(null);
+    this.totalFrames.set(0);
+    this.folderMode.set(true);
+    this.folderEntries.set([]);
+    this.folderPath.set(folderPath);
+
+    try {
+      const files = await this.fs.listVideoFiles(folderPath);
+      if (id !== this.generationId) return;
+
+      if (files.length === 0) {
+        this.error.set('No video files found in this folder');
+        this.loading.set(false);
+        return;
+      }
+
+      for (const filePath of files) {
+        if (id !== this.generationId) return;
+
+        const relativePath = filePath.startsWith(folderPath)
+          ? filePath.substring(folderPath.length).replace(/^\//, '')
+          : filePath;
+
+        const entry: FolderVideoEntry = {
+          filePath,
+          relativePath,
+          info: null,
+          frames: [],
+          error: null,
+        };
+
+        this.folderEntries.update(prev => [...prev, entry]);
+        const entryIndex = this.folderEntries().length - 1;
+
+        try {
+          const videoInfo = await this.fs.getVideoInfo(filePath);
+          if (id !== this.generationId) return;
+
+          this.updateFolderEntry(entryIndex, { info: videoInfo });
+
+          const timestamps = this.calculateTimestamps(videoInfo.durationSecs, this.mode());
+
+          for (let i = 0; i < timestamps.length; i++) {
+            if (id !== this.generationId) return;
+
+            const frame = await this.fs.extractVideoFrame(filePath, timestamps[i], i);
+            if (id !== this.generationId) return;
+
+            this.updateFolderEntry(entryIndex, {
+              frames: [...this.folderEntries()[entryIndex].frames, frame],
+            });
+          }
+        } catch (e: any) {
+          if (id !== this.generationId) return;
+          this.updateFolderEntry(entryIndex, {
+            error: typeof e === 'string' ? e : e.message ?? 'Unknown error',
+          });
+        }
+      }
+    } catch (e: any) {
+      if (id !== this.generationId) return;
+      this.error.set(typeof e === 'string' ? e : e.message ?? 'Unknown error');
+    } finally {
+      if (id === this.generationId) {
+        this.loading.set(false);
+      }
+    }
+  }
+
+  private updateFolderEntry(index: number, updates: Partial<FolderVideoEntry>): void {
+    this.folderEntries.update(entries => {
+      const updated = [...entries];
+      updated[index] = { ...updated[index], ...updates };
+      return updated;
+    });
+  }
+
   async regenerate(): Promise<void> {
-    const path = this.currentPath();
-    if (path) {
-      await this.generateFrames(path);
+    if (this.folderMode()) {
+      const path = this.folderPath();
+      if (path) {
+        await this.generateFolderFrames(path);
+      }
+    } else {
+      const path = this.currentPath();
+      if (path) {
+        await this.generateFrames(path);
+      }
     }
   }
 
@@ -86,6 +186,9 @@ export class PreviewService {
     this.currentPath.set(null);
     this.totalFrames.set(0);
     this.info.set(null);
+    this.folderMode.set(false);
+    this.folderEntries.set([]);
+    this.folderPath.set(null);
   }
 
   private calculateTimestamps(duration: number, mode: FrameMode): number[] {

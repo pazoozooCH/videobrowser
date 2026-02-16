@@ -49,8 +49,10 @@ export class ContextMenuService {
       },
       {
         label: 'Video Preview',
-        enabled: isVideo,
-        action: () => this.previewService.generateFrames(node.entry.path),
+        enabled: isVideo || node.entry.isDirectory,
+        action: () => node.entry.isDirectory
+          ? this.previewService.generateFolderFrames(node.entry.path)
+          : this.previewService.generateFrames(node.entry.path),
       },
       {
         label: 'Show in File Manager',

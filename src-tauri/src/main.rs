@@ -37,6 +37,7 @@ fn main() {
             fs_commands::open_in_vlc,
             fs_commands::get_cli_path,
             fs_commands::search_files,
+            video_commands::list_video_files,
             video_commands::get_video_info,
             video_commands::extract_video_frame,
         ])

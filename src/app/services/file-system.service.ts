@@ -54,6 +54,10 @@ export class FileSystemService {
     return invoke<FileEntry[]>('search_files', { path, pattern });
   }
 
+  async listVideoFiles(path: string): Promise<string[]> {
+    return invoke<string[]>('list_video_files', { path });
+  }
+
   async getVideoInfo(path: string): Promise<VideoInfo> {
     return invoke<VideoInfo>('get_video_info', { path });
   }

@@ -104,6 +104,23 @@
   font-size: 13px;
 }
 
+.folder-entry {
+  border-bottom: 2px solid #ddd;
+  padding: 0 12px 12px;
+}
+
+.folder-entry:last-child {
+  border-bottom: none;
+}
+
+.folder-entry-header {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 10px 0 4px;
+  color: #333;
+  word-break: break-all;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

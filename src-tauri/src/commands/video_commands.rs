@@ -5,7 +5,60 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
 use crate::cache::{self, CacheState};
+use crate::encoding::encoding::decode_string;
 use crate::models::video_frame::{VideoFrame, VideoInfo};
+
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "avi", "webm", "mov", "mpg", "mpeg"];
+
+#[tauri::command]
+pub fn list_video_files(path: String) -> Result<Vec<String>, String> {
+    let dir_path = Path::new(&path);
+    if !dir_path.is_dir() {
+        return Err(format!("Not a directory: {}", path));
+    }
+
+    let mut results = Vec::new();
+    collect_video_files(dir_path, &mut results)?;
+    results.sort();
+    Ok(results)
+}
+
+fn collect_video_files(dir: &Path, results: &mut Vec<String>) -> Result<(), String> {
+    let entries = std::fs::read_dir(dir)
+        .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            collect_video_files(&path, results)?;
+        } else if is_video_file(&path) {
+            results.push(path.to_string_lossy().to_string());
+        }
+    }
+    Ok(())
+}
+
+fn is_video_file(path: &Path) -> bool {
+    let file_name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => name,
+        None => return false,
+    };
+
+    // Check if it's a .dat_ encoded file
+    if file_name.starts_with(".dat_") {
+        let encoded_part = &file_name[5..];
+        if let Some(decoded) = decode_string(encoded_part) {
+            let ext = decoded.rsplit('.').next().unwrap_or("").to_lowercase();
+            return VIDEO_EXTENSIONS.contains(&ext.as_str());
+        }
+        return false;
+    }
+
+    let ext = file_name.rsplit('.').next().unwrap_or("").to_lowercase();
+    VIDEO_EXTENSIONS.contains(&ext.as_str())
+}
 
 #[tauri::command]
 pub fn get_video_info(path: String) -> Result<VideoInfo, String> {
