@@ -1,4 +1,4 @@
-import { AfterViewChecked, Component, DestroyRef, ElementRef, inject, NgZone, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, inject, NgZone, signal, viewChild, effect } from '@angular/core';
 import { PreviewService } from '../../services/preview.service';
 import { FileSystemService } from '../../services/file-system.service';
 import { FrameMode } from '../../models/video-frame.model';
@@ -11,7 +11,7 @@ const MIN_TREE_WIDTH = 250;
   templateUrl: './preview-panel.component.html',
   styleUrl: './preview-panel.component.css',
 })
-export class PreviewPanelComponent implements AfterViewChecked {
+export class PreviewPanelComponent {
   protected readonly preview = inject(PreviewService);
   private readonly fs = inject(FileSystemService);
   private readonly destroyRef = inject(DestroyRef);
@@ -23,8 +23,8 @@ export class PreviewPanelComponent implements AfterViewChecked {
 
   private observer: IntersectionObserver | null = null;
   private observedElements = new Set<Element>();
-  protected readonly visibleEntries = signal(new Set<string>());
-  protected readonly entryHeights = new Map<string, number>();
+  protected readonly hiddenEntries = signal(new Set<string>());
+  private readonly entryHeights = new Map<string, number>();
 
   readonly presets: { label: string; mode: FrameMode }[] = [
     { label: '9 frames', mode: { type: 'fixed', count: 9 } },
@@ -35,11 +35,15 @@ export class PreviewPanelComponent implements AfterViewChecked {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.cleanupObserver());
-  }
 
-  ngAfterViewChecked(): void {
-    this.setupObserver();
-    this.observeNewEntries();
+    // React to folder entries changes to observe new elements
+    effect(() => {
+      const entries = this.preview.folderEntries();
+      if (entries.length > 0) {
+        // Schedule observation after Angular renders the new elements
+        requestAnimationFrame(() => this.observeNewEntries());
+      }
+    });
   }
 
   private setupObserver(): void {
@@ -47,34 +51,34 @@ export class PreviewPanelComponent implements AfterViewChecked {
     if (!container || this.observer) return;
 
     this.observer = new IntersectionObserver(
-      (entries) => {
-        const visible = new Set(this.visibleEntries());
+      (observerEntries) => {
+        const hidden = new Set(this.hiddenEntries());
         let changed = false;
 
-        for (const entry of entries) {
+        for (const entry of observerEntries) {
           const filePath = (entry.target as HTMLElement).dataset['filePath'];
           if (!filePath) continue;
 
           if (entry.isIntersecting) {
-            if (!visible.has(filePath)) {
-              visible.add(filePath);
+            if (hidden.has(filePath)) {
+              hidden.delete(filePath);
               changed = true;
             }
           } else {
-            // Capture height before hiding
+            // Only hide if we have a recorded height (i.e., it was rendered at least once)
             const height = (entry.target as HTMLElement).offsetHeight;
             if (height > 0) {
               this.entryHeights.set(filePath, height);
             }
-            if (visible.has(filePath)) {
-              visible.delete(filePath);
+            if (!hidden.has(filePath) && this.entryHeights.has(filePath)) {
+              hidden.add(filePath);
               changed = true;
             }
           }
         }
 
         if (changed) {
-          this.zone.run(() => this.visibleEntries.set(visible));
+          this.zone.run(() => this.hiddenEntries.set(hidden));
         }
       },
       {
@@ -85,33 +89,18 @@ export class PreviewPanelComponent implements AfterViewChecked {
   }
 
   private observeNewEntries(): void {
+    this.setupObserver();
     if (!this.observer) return;
     const container = this.scrollContainer()?.nativeElement;
     if (!container) return;
-
-    const visible = this.visibleEntries();
-    let added = false;
 
     const entryElements = container.querySelectorAll('[data-file-path]');
     entryElements.forEach((el) => {
       if (!this.observedElements.has(el)) {
         this.observer!.observe(el);
         this.observedElements.add(el);
-        // New entries are visible by default; the observer will hide them
-        // once they scroll out of viewport + margin
-        const filePath = (el as HTMLElement).dataset['filePath'];
-        if (filePath && !visible.has(filePath)) {
-          if (!added) {
-            added = true;
-          }
-          visible.add(filePath);
-        }
       }
     });
-
-    if (added) {
-      this.visibleEntries.set(new Set(visible));
-    }
   }
 
   private cleanupObserver(): void {
@@ -120,14 +109,14 @@ export class PreviewPanelComponent implements AfterViewChecked {
     this.observedElements.clear();
   }
 
-  resetVirtualScroll(): void {
+  private resetVirtualScroll(): void {
     this.cleanupObserver();
-    this.visibleEntries.set(new Set());
+    this.hiddenEntries.set(new Set());
     this.entryHeights.clear();
   }
 
   isEntryVisible(filePath: string): boolean {
-    return this.visibleEntries().has(filePath);
+    return !this.hiddenEntries().has(filePath);
   }
 
   getPlaceholderHeight(filePath: string): number {
