@@ -98,6 +98,14 @@
   font-size: 12px;
 }
 
+.progress-bar {
+  padding: 4px 12px;
+  color: #666;
+  font-size: 12px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+}
+
 .error {
   color: #c00;
   padding: 12px;

@@ -17,13 +17,13 @@
 
     @if (preview.folderMode()) {
       <!-- Folder mode -->
+      @if (preview.loading()) {
+        <div class="progress-bar">Processing file {{ preview.folderEntries().length }} ...</div>
+      }
       <div class="content">
         @if (preview.error(); as error) {
           <div class="error">{{ error }}</div>
         } @else {
-          @if (preview.loading()) {
-            <div class="progress">Processing file {{ preview.folderEntries().length }} ...</div>
-          }
           @for (entry of preview.folderEntries(); track entry.filePath) {
             <div class="folder-entry">
               <div class="folder-entry-header">
