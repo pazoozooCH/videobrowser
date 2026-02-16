@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { AfterViewChecked, Component, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { PreviewService } from '../../services/preview.service';
 import { FileSystemService } from '../../services/file-system.service';
 import { FrameMode } from '../../models/video-frame.model';
@@ -11,12 +11,19 @@ const MIN_TREE_WIDTH = 250;
   templateUrl: './preview-panel.component.html',
   styleUrl: './preview-panel.component.css',
 })
-export class PreviewPanelComponent {
+export class PreviewPanelComponent implements AfterViewChecked {
   protected readonly preview = inject(PreviewService);
   private readonly fs = inject(FileSystemService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly panelWidth = signal(600);
   private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly scrollContainer = viewChild<ElementRef<HTMLElement>>('folderContent');
+
+  private observer: IntersectionObserver | null = null;
+  private observedElements = new Set<Element>();
+  protected readonly visibleEntries = signal(new Set<string>());
+  protected readonly entryHeights = new Map<string, number>();
 
   readonly presets: { label: string; mode: FrameMode }[] = [
     { label: '9 frames', mode: { type: 'fixed', count: 9 } },
@@ -25,7 +32,93 @@ export class PreviewPanelComponent {
     { label: 'Every 5 min', mode: { type: 'interval', minutes: 5 } },
   ];
 
+  constructor() {
+    this.destroyRef.onDestroy(() => this.cleanupObserver());
+  }
+
+  ngAfterViewChecked(): void {
+    this.setupObserver();
+    this.observeNewEntries();
+  }
+
+  private setupObserver(): void {
+    const container = this.scrollContainer()?.nativeElement;
+    if (!container || this.observer) return;
+
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        const visible = new Set(this.visibleEntries());
+        let changed = false;
+
+        for (const entry of entries) {
+          const filePath = (entry.target as HTMLElement).dataset['filePath'];
+          if (!filePath) continue;
+
+          if (entry.isIntersecting) {
+            if (!visible.has(filePath)) {
+              visible.add(filePath);
+              changed = true;
+            }
+          } else {
+            // Capture height before hiding
+            const height = (entry.target as HTMLElement).offsetHeight;
+            if (height > 0) {
+              this.entryHeights.set(filePath, height);
+            }
+            if (visible.has(filePath)) {
+              visible.delete(filePath);
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          this.visibleEntries.set(visible);
+        }
+      },
+      {
+        root: container,
+        rootMargin: '400px 0px',
+      }
+    );
+  }
+
+  private observeNewEntries(): void {
+    if (!this.observer) return;
+    const container = this.scrollContainer()?.nativeElement;
+    if (!container) return;
+
+    const entryElements = container.querySelectorAll('[data-file-path]');
+    entryElements.forEach((el) => {
+      if (!this.observedElements.has(el)) {
+        this.observer!.observe(el);
+        this.observedElements.add(el);
+      }
+    });
+  }
+
+  private cleanupObserver(): void {
+    this.observer?.disconnect();
+    this.observer = null;
+    this.observedElements.clear();
+  }
+
+  resetVirtualScroll(): void {
+    this.cleanupObserver();
+    this.visibleEntries.set(new Set());
+    this.entryHeights.clear();
+  }
+
+  isEntryVisible(filePath: string): boolean {
+    return this.visibleEntries().has(filePath);
+  }
+
+  getPlaceholderHeight(filePath: string): number {
+    return this.entryHeights.get(filePath) ?? 200;
+  }
+
   selectMode(mode: FrameMode): void {
+    this.resetVirtualScroll();
     this.preview.mode.set(mode);
     this.preview.regenerate();
   }

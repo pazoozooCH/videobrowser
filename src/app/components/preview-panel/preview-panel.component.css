@@ -136,6 +136,10 @@
   border-bottom: none;
 }
 
+.folder-entry-placeholder {
+  min-height: 50px;
+}
+
 .folder-entry-header {
   display: flex;
   align-items: baseline;

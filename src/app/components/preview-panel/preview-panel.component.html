@@ -21,72 +21,76 @@
       @if (preview.loading()) {
         <div class="progress-bar">Processing file {{ preview.folderEntries().length }} ...</div>
       }
-      <div class="content">
+      <div class="content" #folderContent>
         @if (preview.error(); as error) {
           <div class="error">{{ error }}</div>
         } @else {
           @for (entry of preview.folderEntries(); track entry.filePath) {
-            <div class="folder-entry">
-              <div class="folder-entry-header">
-                <span class="decoded-name">{{ entry.decodedRelativePath }}</span>
-                @if (entry.decodedRelativePath !== entry.relativePath) {
-                  <span class="encoded-name">{{ entry.relativePath }}</span>
+            <div class="folder-entry" [attr.data-file-path]="entry.filePath">
+              @if (isEntryVisible(entry.filePath)) {
+                <div class="folder-entry-header">
+                  <span class="decoded-name">{{ entry.decodedRelativePath }}</span>
+                  @if (entry.decodedRelativePath !== entry.relativePath) {
+                    <span class="encoded-name">{{ entry.relativePath }}</span>
+                  }
+                  <button class="vlc-btn" (click)="openInVlc(entry.filePath)">VLC</button>
+                </div>
+                @if (entry.info; as info) {
+                  <div class="info-section">
+                    <div class="info-row">
+                      <span class="info-label">Duration</span>
+                      <span class="info-value">{{ formatTimestamp(info.durationSecs) }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">Size</span>
+                      <span class="info-value">{{ formatFileSize(info.fileSizeBytes) }}</span>
+                    </div>
+                    @if (info.width && info.height) {
+                      <div class="info-row">
+                        <span class="info-label">Resolution</span>
+                        <span class="info-value">{{ info.width }}x{{ info.height }}</span>
+                      </div>
+                    }
+                    @if (info.displayAspectRatio) {
+                      <div class="info-row">
+                        <span class="info-label">Aspect Ratio</span>
+                        <span class="info-value">{{ info.displayAspectRatio }}</span>
+                      </div>
+                    }
+                    @if (info.codec) {
+                      <div class="info-row">
+                        <span class="info-label">Codec</span>
+                        <span class="info-value">{{ info.codec }}</span>
+                      </div>
+                    }
+                    @if (info.bitrate) {
+                      <div class="info-row">
+                        <span class="info-label">Bitrate</span>
+                        <span class="info-value">{{ formatBitrate(info.bitrate) }}</span>
+                      </div>
+                    }
+                    @if (info.framerate) {
+                      <div class="info-row">
+                        <span class="info-label">Framerate</span>
+                        <span class="info-value">{{ info.framerate }} fps</span>
+                      </div>
+                    }
+                  </div>
                 }
-                <button class="vlc-btn" (click)="openInVlc(entry.filePath)">VLC</button>
-              </div>
-              @if (entry.info; as info) {
-                <div class="info-section">
-                  <div class="info-row">
-                    <span class="info-label">Duration</span>
-                    <span class="info-value">{{ formatTimestamp(info.durationSecs) }}</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-label">Size</span>
-                    <span class="info-value">{{ formatFileSize(info.fileSizeBytes) }}</span>
-                  </div>
-                  @if (info.width && info.height) {
-                    <div class="info-row">
-                      <span class="info-label">Resolution</span>
-                      <span class="info-value">{{ info.width }}x{{ info.height }}</span>
-                    </div>
-                  }
-                  @if (info.displayAspectRatio) {
-                    <div class="info-row">
-                      <span class="info-label">Aspect Ratio</span>
-                      <span class="info-value">{{ info.displayAspectRatio }}</span>
-                    </div>
-                  }
-                  @if (info.codec) {
-                    <div class="info-row">
-                      <span class="info-label">Codec</span>
-                      <span class="info-value">{{ info.codec }}</span>
-                    </div>
-                  }
-                  @if (info.bitrate) {
-                    <div class="info-row">
-                      <span class="info-label">Bitrate</span>
-                      <span class="info-value">{{ formatBitrate(info.bitrate) }}</span>
-                    </div>
-                  }
-                  @if (info.framerate) {
-                    <div class="info-row">
-                      <span class="info-label">Framerate</span>
-                      <span class="info-value">{{ info.framerate }} fps</span>
+                @if (entry.error; as entryError) {
+                  <div class="error">{{ entryError }}</div>
+                }
+                <div class="grid">
+                  @for (frame of entry.frames; track frame.index) {
+                    <div class="frame clickable" (click)="openInVlc(entry.filePath, frame.timestampSecs)">
+                      <img [src]="'data:image/jpeg;base64,' + frame.dataBase64" [alt]="'Frame at ' + formatTimestamp(frame.timestampSecs)" />
+                      <span class="timestamp">{{ formatTimestamp(frame.timestampSecs) }}</span>
                     </div>
                   }
                 </div>
+              } @else {
+                <div class="folder-entry-placeholder" [style.height.px]="getPlaceholderHeight(entry.filePath)"></div>
               }
-              @if (entry.error; as entryError) {
-                <div class="error">{{ entryError }}</div>
-              }
-              <div class="grid">
-                @for (frame of entry.frames; track frame.index) {
-                  <div class="frame clickable" (click)="openInVlc(entry.filePath, frame.timestampSecs)">
-                    <img [src]="'data:image/jpeg;base64,' + frame.dataBase64" [alt]="'Frame at ' + formatTimestamp(frame.timestampSecs)" />
-                    <span class="timestamp">{{ formatTimestamp(frame.timestampSecs) }}</span>
-                  </div>
-                }
-              </div>
             </div>
           }
         }
