@@ -14,7 +14,7 @@ export class PreviewService {
   constructor() {
     effect(() => {
       const selectedPath = this.fileTreeService.selectedPath();
-      if (!this.active() || this.folderMode() || !selectedPath || selectedPath === this.currentPath()) return;
+      if (!this.active() || !selectedPath || selectedPath === this.currentPath()) return;
       const node = this.fileTreeService.visibleNodes().find(n => n.entry.path === selectedPath);
       if (!node || node.entry.isDirectory) return;
       const ext = node.entry.name.split('.').pop()?.toLowerCase() ?? '';
@@ -67,6 +67,7 @@ export class PreviewService {
         if (id !== this.generationId) return;
 
         this.frames.update(prev => [...prev, frame]);
+        await this.yield();
       }
     } catch (e: any) {
       if (id !== this.generationId) return;
@@ -137,6 +138,7 @@ export class PreviewService {
             this.updateFolderEntry(entryIndex, {
               frames: [...this.folderEntries()[entryIndex].frames, frame],
             });
+            await this.yield();
           }
         } catch (e: any) {
           if (id !== this.generationId) return;
@@ -189,6 +191,10 @@ export class PreviewService {
     this.folderMode.set(false);
     this.folderEntries.set([]);
     this.folderPath.set(null);
+  }
+
+  private yield(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
   }
 
   private calculateTimestamps(duration: number, mode: FrameMode): number[] {
