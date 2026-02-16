@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "Filebrowser",
+  "productName": "Videobrowser",
   "version": "0.1.0",
   "identifier": "ch.inftec.mme.videobrowser",
   "build": {
@@ -24,7 +24,7 @@
   "app": {
     "windows": [
       {
-        "title": "Filebrowser",
+        "title": "Videobrowser",
         "width": 1024,
         "height": 768
       }
