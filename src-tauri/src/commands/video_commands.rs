@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::Command;
+use std::time::UNIX_EPOCH;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -7,6 +8,17 @@ use base64::engine::general_purpose::STANDARD;
 use crate::cache::{self, CacheState};
 use crate::encoding::encoding::decode_string;
 use crate::models::video_frame::{VideoFrame, VideoInfo};
+
+fn new_command(program: &str) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
 
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "avi", "webm", "mov", "mpg", "mpeg"];
 
@@ -61,7 +73,7 @@ fn is_video_file(path: &Path) -> bool {
 }
 
 #[tauri::command]
-pub fn get_video_info(path: String) -> Result<VideoInfo, String> {
+pub async fn get_video_info(path: String) -> Result<VideoInfo, String> {
     let file_path = Path::new(&path);
     if !file_path.is_file() {
         return Err(format!("Not a file: {}", path));
@@ -71,17 +83,22 @@ pub fn get_video_info(path: String) -> Result<VideoInfo, String> {
         .map_err(|e| format!("Failed to read file metadata: {}", e))?
         .len();
 
-    let output = Command::new("ffprobe")
-        .args([
-            "-v", "error",
-            "-show_entries", "format=duration,bit_rate",
-            "-show_entries", "stream=width,height,display_aspect_ratio,codec_name,r_frame_rate",
-            "-select_streams", "v:0",
-            "-of", "json",
-            &path,
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run ffprobe: {}", e))?;
+    let path_clone = path.clone();
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        new_command("ffprobe")
+            .args([
+                "-v", "error",
+                "-show_entries", "format=duration,bit_rate",
+                "-show_entries", "stream=width,height,display_aspect_ratio,codec_name,r_frame_rate",
+                "-select_streams", "v:0",
+                "-of", "json",
+                &path_clone,
+            ])
+            .output()
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+    .map_err(|e| format!("Failed to run ffprobe: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -138,48 +155,62 @@ fn simplify_framerate(rate: &str) -> String {
     rate.to_string()
 }
 
+fn modified_epoch_secs(path: &str) -> Result<u64, String> {
+    let metadata = std::fs::metadata(path)
+        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
+    let modified = metadata
+        .modified()
+        .map_err(|e| format!("Failed to read mtime: {}", e))?;
+    Ok(modified
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs())
+}
+
 #[tauri::command]
-pub fn extract_video_frame(
+pub async fn extract_video_frame(
     path: String,
     timestamp_secs: f64,
     index: u32,
-    cache_state: tauri::State<CacheState>,
+    cache_state: tauri::State<'_, CacheState>,
 ) -> Result<VideoFrame, String> {
     let file_path = Path::new(&path);
     if !file_path.is_file() {
         return Err(format!("Not a file: {}", path));
     }
 
-    let metadata = std::fs::metadata(&path)
-        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
-    let modified = metadata
-        .modified()
-        .map_err(|e| format!("Failed to read mtime: {}", e))?;
-    let modified_str = format!("{:?}", modified);
+    let modified_secs = modified_epoch_secs(&path)?;
+    let modified_str = modified_secs.to_string();
 
-    let conn = cache_state.0.lock().map_err(|e| format!("Cache lock error: {}", e))?;
-
-    if let Some(jpeg_data) = cache::get_cached_frame(&conn, &path, &modified_str, timestamp_secs) {
-        return Ok(VideoFrame {
-            index,
-            timestamp_secs,
-            data_base64: STANDARD.encode(&jpeg_data),
-        });
+    // Check cache (brief lock)
+    {
+        let conn = cache_state.0.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        if let Some(jpeg_data) = cache::get_cached_frame(&conn, &path, &modified_str, timestamp_secs) {
+            return Ok(VideoFrame {
+                index,
+                timestamp_secs,
+                data_base64: STANDARD.encode(&jpeg_data),
+            });
+        }
     }
 
-    drop(conn);
-
-    let output = Command::new("ffmpeg")
-        .args([
-            "-ss", &timestamp_secs.to_string(),
-            "-i", &path,
-            "-frames:v", "1",
-            "-f", "image2pipe",
-            "-vcodec", "mjpeg",
-            "pipe:1",
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run ffmpeg: {}", e))?;
+    // Run ffmpeg off the main thread
+    let path_clone = path.clone();
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        new_command("ffmpeg")
+            .args([
+                "-ss", &timestamp_secs.to_string(),
+                "-i", &path_clone,
+                "-frames:v", "1",
+                "-f", "image2pipe",
+                "-vcodec", "mjpeg",
+                "pipe:1",
+            ])
+            .output()
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+    .map_err(|e| format!("Failed to run ffmpeg: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -190,8 +221,11 @@ pub fn extract_video_frame(
         return Err(format!("ffmpeg produced no output at {}s", timestamp_secs));
     }
 
-    let conn = cache_state.0.lock().map_err(|e| format!("Cache lock error: {}", e))?;
-    cache::store_frame(&conn, &path, &modified_str, timestamp_secs, &output.stdout);
+    // Store in cache (brief lock)
+    {
+        let conn = cache_state.0.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        cache::store_frame(&conn, &path, &modified_str, timestamp_secs, &output.stdout);
+    }
 
     Ok(VideoFrame {
         index,

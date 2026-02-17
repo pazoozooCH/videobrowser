@@ -107,7 +107,7 @@ export class PreviewService {
         if (id !== this.generationId) return;
 
         const relativePath = filePath.startsWith(folderPath)
-          ? filePath.substring(folderPath.length).replace(/^\//, '')
+          ? filePath.substring(folderPath.length).replace(/^[/\\]/, '')
           : filePath;
 
         const decodedRelativePath = this.decodeRelativePath(relativePath);
@@ -197,7 +197,7 @@ export class PreviewService {
   }
 
   private decodeRelativePath(relativePath: string): string {
-    return relativePath.split('/').map(segment => {
+    return relativePath.split(/[/\\]/).map(segment => {
       if (segment.startsWith('.dat_')) {
         try {
           return atob(segment.substring(5));
