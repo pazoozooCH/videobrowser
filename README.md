@@ -7,6 +7,7 @@ A desktop file browser application built with [Angular](https://angular.dev/) an
 - [Node.js](https://nodejs.org/) (v22+)
 - [Rust](https://www.rust-lang.org/tools/install) (includes `cargo`)
 - [FFmpeg](#ffmpeg) (includes `ffmpeg` and `ffprobe`)
+- [VLC](#vlc) media player
 - Linux: system libraries listed below
 
 ### Rust
@@ -75,6 +76,27 @@ sudo dnf install ffmpeg
 ```
 
 Verify with: `ffmpeg -version && ffprobe -version`
+
+### VLC
+
+[VLC](https://www.videolan.org/) is used to open and play videos from within the app (via context menu or preview panel).
+
+**Windows:**
+
+Download from https://www.videolan.org/vlc/ and install to the default location (`C:\Program Files\VideoLAN\VLC\`).
+
+**Linux:**
+
+```bash
+# Debian/Ubuntu
+sudo apt install vlc
+
+# Arch
+sudo pacman -S vlc
+
+# Fedora
+sudo dnf install vlc
+```
 
 ## Getting Started
 
