@@ -5,9 +5,47 @@ A desktop file browser application built with [Angular](https://angular.dev/) an
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v22+)
-- [Rust](https://www.rust-lang.org/tools/install)
+- [Rust](https://www.rust-lang.org/tools/install) (includes `cargo`)
 - [FFmpeg](#ffmpeg) (includes `ffmpeg` and `ffprobe`)
-- Linux: WebKitGTK and related dev libraries (on Arch: `sudo pacman -S webkit2gtk-4.1`)
+- Linux: system libraries listed below
+
+### Rust
+
+Install via [rustup](https://rustup.rs/) (recommended):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+On Arch Linux, you can alternatively install from the repos:
+
+```bash
+sudo pacman -S rustup
+rustup default stable
+```
+
+Verify with: `cargo --version`
+
+### Linux System Dependencies
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl appmenu-gtk-module libappindicator-gtk3 librsvg
+```
+
+**Debian/Ubuntu:**
+
+```bash
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+**Fedora:**
+
+```bash
+sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file libappindicator-gtk3-devel librsvg2-devel
+sudo dnf group install "C Development Tools and Libraries"
+```
 
 ### FFmpeg
 
