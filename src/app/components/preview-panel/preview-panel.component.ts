@@ -28,7 +28,7 @@ export class PreviewPanelComponent {
 
   readonly presets: { label: string; mode: FrameMode }[] = [
     { label: '9 frames', mode: { type: 'fixed', count: 9 } },
-    { label: '16 frames', mode: { type: 'fixed', count: 16 } },
+    { label: '18 frames', mode: { type: 'fixed', count: 18 } },
     { label: 'Every 1 min', mode: { type: 'interval', minutes: 1 } },
     { label: 'Every 5 min', mode: { type: 'interval', minutes: 5 } },
   ];
