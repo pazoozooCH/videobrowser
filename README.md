@@ -92,7 +92,7 @@ Download from https://www.videolan.org/vlc/ and install to the default location 
 sudo apt install vlc
 
 # Arch
-sudo pacman -S vlc
+sudo pacman -S vlc vlc-plugins-all
 
 # Fedora
 sudo dnf install vlc
