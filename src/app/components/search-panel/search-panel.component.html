@@ -4,7 +4,7 @@
       <input
         #searchInput
         type="text"
-        placeholder="Search files..."
+        placeholder="Search files… (space-separated terms, any order)"
         [value]="searchService.query()"
         (keydown)="onKeydown($event)"
       />

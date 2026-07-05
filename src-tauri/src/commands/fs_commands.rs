@@ -385,13 +385,20 @@ fn search_files_impl(
         return Err(format!("Not a directory: {}", path));
     }
 
-    let pattern_lower = pattern.to_lowercase();
+    // Split the query into whitespace-separated terms. A name matches when it
+    // contains every term (order-independent substring match), so "my file"
+    // matches "my test file".
+    let terms: Vec<String> = pattern
+        .to_lowercase()
+        .split_whitespace()
+        .map(|t| t.to_string())
+        .collect();
     let mut results = Vec::new();
     let mut scanned: usize = 0;
     let mut last_emit: usize = 0;
     search_recursive(
         dir_path,
-        &pattern_lower,
+        &terms,
         &mut results,
         &mut scanned,
         &mut last_emit,
@@ -407,7 +414,7 @@ fn search_files_impl(
 
 fn search_recursive(
     dir: &Path,
-    pattern: &str,
+    terms: &[String],
     results: &mut Vec<FileEntry>,
     scanned: &mut usize,
     last_emit: &mut usize,
@@ -426,7 +433,8 @@ fn search_recursive(
         let entry_path = entry.path();
         let display_name = try_decode_name(&file_name).unwrap_or_else(|| file_name.clone());
 
-        if display_name.to_lowercase().contains(pattern) {
+        let name_lower = display_name.to_lowercase();
+        if !terms.is_empty() && terms.iter().all(|t| name_lower.contains(t.as_str())) {
             results.push(build_file_entry(&entry_path)?);
         }
 
@@ -437,7 +445,7 @@ fn search_recursive(
         }
 
         if entry_path.is_dir() {
-            search_recursive(&entry_path, pattern, results, scanned, last_emit, on_progress)?;
+            search_recursive(&entry_path, terms, results, scanned, last_emit, on_progress)?;
         }
     }
 
@@ -893,6 +901,25 @@ mod tests {
 
         let results = search_files_impl(&tmp.path().to_string_lossy(), "gitignore", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_search_files_multiple_terms_order_independent() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join("my test file.txt"), "").unwrap();
+        fs::write(tmp.path().join("other document.txt"), "").unwrap();
+
+        let root = tmp.path().to_string_lossy();
+        // All of these term sets should match "my test file.txt".
+        for query in ["my test", "my file", "my fi", "my le", "test my", "file my test"] {
+            let results = search_files_impl(&root, query, |_, _, _| {}).unwrap();
+            assert_eq!(results.len(), 1, "query {:?} should match", query);
+            assert_eq!(results[0].name, "my test file.txt", "query {:?}", query);
+        }
+
+        // A term not present anywhere excludes the file.
+        let none = search_files_impl(&root, "my missing", |_, _, _| {}).unwrap();
+        assert_eq!(none.len(), 0);
     }
 
     // --- can_encode_node ---
