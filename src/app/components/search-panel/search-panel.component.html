@@ -12,7 +12,15 @@
       <button (click)="searchService.clear()">Close</button>
     </div>
 
-    @if (searchService.results().length > 0) {
+    @if (searchService.searching()) {
+      <div class="search-status">
+        <span class="spinner"></span>
+        <span
+          >Searching… {{ searchService.progress().scanned.toLocaleString() }} files scanned ·
+          {{ searchService.progress().matches.toLocaleString() }} matches</span
+        >
+      </div>
+    } @else if (searchService.results().length > 0) {
       <div class="search-results">
         @for (entry of searchService.results(); track entry.path) {
           <div class="search-result" (click)="selectResult(entry)">

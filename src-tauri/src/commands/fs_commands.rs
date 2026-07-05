@@ -2,6 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use tauri::Emitter;
+
 use crate::encoding::encoded_dir::{can_encode, encode_name, try_decode_name};
 use crate::models::file_entry::FileEntry;
 
@@ -336,21 +338,77 @@ pub fn open_in_vlc(path: String, start_time: Option<f64>) -> Result<(), String> 
     Ok(())
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SearchProgress {
+    scanned: usize,
+    matches: usize,
+    done: bool,
+}
+
+// Emit a progress event at most every this many scanned entries, to avoid
+// flooding the frontend on large trees.
+const PROGRESS_EMIT_INTERVAL: usize = 200;
+
 #[tauri::command]
-pub fn search_files(path: String, pattern: String) -> Result<Vec<FileEntry>, String> {
-    let dir_path = Path::new(&path);
+pub fn search_files(
+    window: tauri::Window,
+    path: String,
+    pattern: String,
+) -> Result<Vec<FileEntry>, String> {
+    search_files_impl(&path, &pattern, |scanned, matches, done| {
+        let _ = window.emit(
+            "search-progress",
+            SearchProgress {
+                scanned,
+                matches,
+                done,
+            },
+        );
+    })
+}
+
+/// Core search: walks `path` recursively for names containing `pattern`,
+/// invoking `on_progress(scanned, matches, done)` periodically during the walk
+/// and once with `done = true` at the end. Decoupled from Tauri for testability.
+fn search_files_impl(
+    path: &str,
+    pattern: &str,
+    mut on_progress: impl FnMut(usize, usize, bool),
+) -> Result<Vec<FileEntry>, String> {
+    let dir_path = Path::new(path);
     if !dir_path.is_dir() {
         return Err(format!("Not a directory: {}", path));
     }
 
     let pattern_lower = pattern.to_lowercase();
     let mut results = Vec::new();
-    search_recursive(dir_path, &pattern_lower, &mut results)?;
+    let mut scanned: usize = 0;
+    let mut last_emit: usize = 0;
+    search_recursive(
+        dir_path,
+        &pattern_lower,
+        &mut results,
+        &mut scanned,
+        &mut last_emit,
+        &mut on_progress,
+    )?;
     results.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+    // Final event so the UI shows the exact totals when finished.
+    on_progress(scanned, results.len(), true);
+
     Ok(results)
 }
 
-fn search_recursive(dir: &Path, pattern: &str, results: &mut Vec<FileEntry>) -> Result<(), String> {
+fn search_recursive(
+    dir: &Path,
+    pattern: &str,
+    results: &mut Vec<FileEntry>,
+    scanned: &mut usize,
+    last_emit: &mut usize,
+    on_progress: &mut impl FnMut(usize, usize, bool),
+) -> Result<(), String> {
     let entries = fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
 
     for entry in entries {
@@ -368,8 +426,14 @@ fn search_recursive(dir: &Path, pattern: &str, results: &mut Vec<FileEntry>) -> 
             results.push(build_file_entry(&entry_path)?);
         }
 
+        *scanned += 1;
+        if *scanned - *last_emit >= PROGRESS_EMIT_INTERVAL {
+            *last_emit = *scanned;
+            on_progress(*scanned, results.len(), false);
+        }
+
         if entry_path.is_dir() {
-            search_recursive(&entry_path, pattern, results)?;
+            search_recursive(&entry_path, pattern, results, scanned, last_emit, on_progress)?;
         }
     }
 
@@ -790,7 +854,7 @@ mod tests {
         fs::create_dir(&sub).unwrap();
         fs::write(sub.join("hello_nested.txt"), "").unwrap();
 
-        let results = search_files(tmp.path().to_string_lossy().to_string(), "hello".to_string()).unwrap();
+        let results = search_files_impl(&tmp.path().to_string_lossy(), "hello", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 2);
         assert!(results.iter().all(|r| r.name.to_lowercase().contains("hello")));
     }
@@ -801,7 +865,7 @@ mod tests {
         fs::write(tmp.path().join("Hello.TXT"), "").unwrap();
         fs::write(tmp.path().join("other.txt"), "").unwrap();
 
-        let results = search_files(tmp.path().to_string_lossy().to_string(), "hello".to_string()).unwrap();
+        let results = search_files_impl(&tmp.path().to_string_lossy(), "hello", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Hello.TXT");
     }
@@ -813,7 +877,7 @@ mod tests {
         fs::write(tmp.path().join(".dat_VGVzdA=="), "").unwrap();
         fs::write(tmp.path().join("other.txt"), "").unwrap();
 
-        let results = search_files(tmp.path().to_string_lossy().to_string(), "test".to_string()).unwrap();
+        let results = search_files_impl(&tmp.path().to_string_lossy(), "test", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Test");
     }
@@ -823,7 +887,7 @@ mod tests {
         let tmp = create_test_dir();
         fs::write(tmp.path().join(".gitignore"), "").unwrap();
 
-        let results = search_files(tmp.path().to_string_lossy().to_string(), "gitignore".to_string()).unwrap();
+        let results = search_files_impl(&tmp.path().to_string_lossy(), "gitignore", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 0);
     }
 

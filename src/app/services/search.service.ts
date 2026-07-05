@@ -1,13 +1,22 @@
 import { inject, Injectable, signal } from '@angular/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { FileEntry } from '../models/file-node.model';
 import { FileSystemService } from './file-system.service';
 import { FileTreeService } from './file-tree.service';
+
+interface SearchProgress {
+  scanned: number;
+  matches: number;
+  done: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class SearchService {
   readonly results = signal<FileEntry[]>([]);
   readonly searchActive = signal(false);
   readonly query = signal('');
+  readonly searching = signal(false);
+  readonly progress = signal<SearchProgress>({ scanned: 0, matches: 0, done: false });
 
   private readonly fs = inject(FileSystemService);
   private readonly fileTreeService = inject(FileTreeService);
@@ -18,14 +27,29 @@ export class SearchService {
       this.results.set([]);
       return;
     }
-    const entries = await this.fs.searchFiles(rootPath, pattern);
-    this.results.set(entries);
+
+    this.searching.set(true);
+    this.progress.set({ scanned: 0, matches: 0, done: false });
+
+    let unlisten: UnlistenFn | undefined;
+    try {
+      unlisten = await listen<SearchProgress>('search-progress', (event) => {
+        this.progress.set(event.payload);
+      });
+      const entries = await this.fs.searchFiles(rootPath, pattern);
+      this.results.set(entries);
+    } finally {
+      unlisten?.();
+      this.searching.set(false);
+    }
   }
 
   clear(): void {
     this.searchActive.set(false);
     this.results.set([]);
     this.query.set('');
+    this.searching.set(false);
+    this.progress.set({ scanned: 0, matches: 0, done: false });
   }
 
   async selectResult(entry: FileEntry): Promise<void> {
