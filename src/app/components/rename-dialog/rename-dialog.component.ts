@@ -1,4 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  afterRenderEffect,
+  inject,
+  signal,
+  viewChildren,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FileTreeNode } from '../../models/file-node.model';
 import { FileTreeService } from '../../services/file-tree.service';
@@ -16,8 +23,25 @@ export class RenameDialogComponent {
   readonly newName = signal('');
   readonly encode = signal(true);
 
+  private readonly textareas = viewChildren<ElementRef<HTMLTextAreaElement>>('autoGrow');
+
   private node: FileTreeNode | null = null;
   private readonly fileTreeService = inject(FileTreeService);
+
+  constructor() {
+    // Auto-grow the textareas so long, wrapped filenames are fully visible.
+    // Re-runs whenever the dialog opens or the edited name changes.
+    afterRenderEffect(() => {
+      this.visible();
+      this.newName();
+      this.currentName();
+      for (const ref of this.textareas()) {
+        const el = ref.nativeElement;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+      }
+    });
+  }
 
   show(node: FileTreeNode): void {
     this.node = node;
@@ -38,8 +62,15 @@ export class RenameDialogComponent {
     this.hide();
   }
 
+  onNewNameChange(value: string): void {
+    // Filenames must not contain newlines; strip any that get pasted in.
+    this.newName.set(value.replace(/[\r\n]+/g, ''));
+  }
+
   onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') {
+      // Prevent inserting a newline in the textarea; Enter confirms the rename.
+      event.preventDefault();
       this.onRename();
     } else if (event.key === 'Escape') {
       this.hide();

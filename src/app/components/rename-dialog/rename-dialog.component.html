@@ -1,22 +1,26 @@
 @if (visible()) {
-  <div class="overlay" (click)="hide()">
-    <div class="dialog" (click)="$event.stopPropagation()">
-      <h3>Rename</h3>
+  <div class="overlay">
+    <div class="dialog">
+      <div class="header">
+        <h3>Rename</h3>
+        <button class="close" (click)="hide()" aria-label="Close">&times;</button>
+      </div>
 
       <div class="field">
         <label>Current:</label>
-        <input type="text" [value]="currentName()" readonly />
+        <textarea [value]="currentName()" readonly rows="1" #autoGrow></textarea>
       </div>
 
       <div class="field">
         <label>New:</label>
-        <input
-          type="text"
+        <textarea
           [ngModel]="newName()"
-          (ngModelChange)="newName.set($event)"
+          (ngModelChange)="onNewNameChange($event)"
           (keydown)="onKeydown($event)"
+          rows="1"
           #newNameInput
-        />
+          #autoGrow
+        ></textarea>
       </div>
 
       <div class="field checkbox">
