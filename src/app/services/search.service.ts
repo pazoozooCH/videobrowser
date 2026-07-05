@@ -1,4 +1,4 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Injectable, NgZone, signal } from '@angular/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { FileEntry } from '../models/file-node.model';
 import { FileSystemService } from './file-system.service';
@@ -20,6 +20,7 @@ export class SearchService {
 
   private readonly fs = inject(FileSystemService);
   private readonly fileTreeService = inject(FileTreeService);
+  private readonly zone = inject(NgZone);
 
   async search(rootPath: string, pattern: string): Promise<void> {
     this.query.set(pattern);
@@ -34,7 +35,9 @@ export class SearchService {
     let unlisten: UnlistenFn | undefined;
     try {
       unlisten = await listen<SearchProgress>('search-progress', (event) => {
-        this.progress.set(event.payload);
+        // Tauri event callbacks may fire outside Angular's zone; run the signal
+        // update inside it so the progress line actually repaints.
+        this.zone.run(() => this.progress.set(event.payload));
       });
       const entries = await this.fs.searchFiles(rootPath, pattern);
       this.results.set(entries);

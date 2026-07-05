@@ -350,8 +350,12 @@ struct SearchProgress {
 // flooding the frontend on large trees.
 const PROGRESS_EMIT_INTERVAL: usize = 200;
 
+// Async so the (potentially long) recursive walk runs off the main thread.
+// A synchronous command would block the main GTK/event loop on Linux, freezing
+// the webview so the spinner can't animate and progress events aren't delivered
+// until the command returns.
 #[tauri::command]
-pub fn search_files(
+pub async fn search_files(
     window: tauri::Window,
     path: String,
     pattern: String,
