@@ -14,10 +14,11 @@
       <div class="field">
         <label>New:</label>
         <textarea
+          class="new-name"
           [ngModel]="newName()"
           (ngModelChange)="onNewNameChange($event)"
           (keydown)="onKeydown($event)"
-          rows="1"
+          rows="3"
           #newNameInput
           #autoGrow
         ></textarea>
