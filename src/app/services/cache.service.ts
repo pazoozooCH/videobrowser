@@ -25,8 +25,12 @@ export class CacheService {
     listen<SyncStats>('cache-sync-progress', (e) =>
       this.zone.run(() => this.syncProgress.set(e.payload)),
     ).catch(() => {});
+    // Events carry counts only; the final result, with the error messages, must not be
+    // replaced by an event that arrives after it.
     listen<GenerateProgress>('cache-generate-progress', (e) =>
-      this.zone.run(() => this.generateProgress.set(e.payload)),
+      this.zone.run(() => {
+        if (this.generating()) this.generateProgress.set(e.payload);
+      }),
     ).catch(() => {});
     this.fs
       .cacheJobRunning()

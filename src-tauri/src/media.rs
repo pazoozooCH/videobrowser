@@ -43,8 +43,7 @@ pub fn probe(path: &Path) -> Result<VideoInfo, String> {
         .map_err(|e| format!("Failed to run ffprobe: {}", e))?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("ffprobe failed: {}", stderr.trim()));
+        return Err(format!("ffprobe failed: {}", short_error(&output.stderr)));
     }
 
     parse_probe_json(&output.stdout)
@@ -88,20 +87,39 @@ fn parse_probe_json(stdout: &[u8]) -> Result<VideoInfo, String> {
 /// Extracts one JPEG frame at `timestamp_secs`.
 pub fn extract_frame(path: &Path, timestamp_secs: f64) -> Result<Vec<u8>, String> {
     let output = new_command("ffmpeg")
-        .args(["-ss", &timestamp_secs.to_string(), "-i"])
+        .args(["-v", "error", "-ss", &timestamp_secs.to_string(), "-i"])
         .arg(path)
         .args(["-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"])
         .output()
         .map_err(|e| format!("Failed to run ffmpeg: {}", e))?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("ffmpeg failed at {}s: {}", timestamp_secs, stderr.trim()));
+        return Err(format!("ffmpeg failed at {}s: {}", timestamp_secs, short_error(&output.stderr)));
     }
     if output.stdout.is_empty() {
         return Err(format!("ffmpeg produced no output at {}s", timestamp_secs));
     }
     Ok(output.stdout)
+}
+
+const MAX_ERROR_CHARS: usize = 300;
+
+/// The last non-empty line of a tool's stderr, cut to a length a UI can show. The rest is
+/// banner and stream details, and would only bloat every report that carries the error.
+pub fn short_error(stderr: &[u8]) -> String {
+    let text = String::from_utf8_lossy(stderr);
+    let line = text
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("no error output");
+    if line.chars().count() > MAX_ERROR_CHARS {
+        let cut: String = line.chars().take(MAX_ERROR_CHARS).collect();
+        format!("{}…", cut)
+    } else {
+        line.to_string()
+    }
 }
 
 pub fn simplify_framerate(rate: &str) -> String {
@@ -133,6 +151,15 @@ mod tests {
         assert!(is_video_name(&encode_name("Holiday.mov")));
         assert!(!is_video_name(&encode_name("Holiday.txt")));
         assert!(!is_video_name(".dat_!!!"));
+    }
+
+    #[test]
+    fn test_short_error_keeps_last_line() {
+        let stderr = b"ffmpeg version 7\n  built with gcc\n\nInput #0, mov\nfoo.mp4: Invalid data found\n\n";
+        assert_eq!(short_error(stderr), "foo.mp4: Invalid data found");
+        assert_eq!(short_error(b""), "no error output");
+        let long = "x".repeat(1000);
+        assert_eq!(short_error(long.as_bytes()).chars().count(), MAX_ERROR_CHARS + 1);
     }
 
     #[test]

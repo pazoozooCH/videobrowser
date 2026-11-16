@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 use rusqlite::Connection;
 use serde::Serialize;
@@ -70,10 +71,39 @@ pub struct GenerateProgress {
 }
 
 impl GenerateProgress {
+    /// The same report without the error messages, for the frequent progress events: the
+    /// counts tell how many failed, and the final result carries the messages.
+    pub fn without_errors(&self) -> GenerateProgress {
+        GenerateProgress { errors: Vec::new(), current: self.current.clone(), ..*self }
+    }
+
     fn error(&mut self, name: &str, message: &str) {
         if self.errors.len() < MAX_REPORTED_ERRORS {
             self.errors.push(format!("{}: {}", name, message));
         }
+    }
+}
+
+/// Lets a progress report through at most once per interval, and always the last one, so that
+/// a job of many quick steps does not flood the webview with events.
+pub struct Throttle {
+    every: Duration,
+    last: Option<Instant>,
+}
+
+impl Throttle {
+    pub fn new(every: Duration) -> Self {
+        Throttle { every, last: None }
+    }
+
+    pub fn ready(&mut self, last_report: bool) -> bool {
+        let now = Instant::now();
+        let due = self.last.is_none_or(|t| now.duration_since(t) >= self.every);
+        if due || last_report {
+            self.last = Some(now);
+            return true;
+        }
+        false
     }
 }
 
@@ -362,6 +392,25 @@ mod tests {
         // An interrupted set is not marked, so a later run continues it.
         let sets: i64 = conn.query_row("SELECT COUNT(*) FROM frame_sets", [], |r| r.get(0)).unwrap();
         assert_eq!(sets, 0);
+    }
+
+    #[test]
+    fn test_throttle() {
+        let mut throttle = Throttle::new(Duration::from_secs(60));
+        assert!(throttle.ready(false));
+        assert!(!throttle.ready(false));
+        assert!(throttle.ready(true));
+        let mut fast = Throttle::new(Duration::ZERO);
+        assert!(fast.ready(false) && fast.ready(false));
+    }
+
+    #[test]
+    fn test_progress_without_errors() {
+        let mut progress = GenerateProgress { videos_failed: 1, current: Some("a".into()), ..Default::default() };
+        progress.error("a", "broken");
+        let light = progress.without_errors();
+        assert!(light.errors.is_empty());
+        assert_eq!((light.videos_failed, light.current.as_deref()), (1, Some("a")));
     }
 
     #[test]

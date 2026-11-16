@@ -1,19 +1,24 @@
 //! The global cache functions: sync, generate, cancel, info, and clear.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use rusqlite::Connection;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::cache::frames::{self, CacheInfo};
 use crate::cache::index::{self, SyncStats};
-use crate::cache::jobs::{self, GenerateProgress};
+use crate::cache::jobs::{self, GenerateProgress, Throttle};
 use crate::cache::mode::FrameMode;
 use crate::cache::CacheState;
 use crate::media;
 
 /// ffmpeg processes a generate job runs at once.
 const GENERATE_WORKERS: usize = 2;
+
+/// At most this often a generate job reports progress; the webview handles every event on its
+/// main thread.
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
 pub async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(f)
@@ -23,8 +28,8 @@ pub async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static)
 
 /// Runs `f` off the main thread on a connection of its own, holding the sync lock, so that a
 /// sync inside it never runs alongside another.
-pub async fn with_synced_connection<T: Send + 'static>(
-    app: AppHandle,
+pub async fn with_synced_connection<R: Runtime, T: Send + 'static>(
+    app: AppHandle<R>,
     f: impl FnOnce(&mut Connection) -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
     blocking(move || {
@@ -40,7 +45,7 @@ pub async fn with_synced_connection<T: Send + 'static>(
 /// whose mtime changed are listed. `full` lists all, compares every file, and drops the frames
 /// of videos that are gone. Emits `cache-sync-progress`.
 #[tauri::command]
-pub async fn sync_cache(app: AppHandle, root: String, full: bool) -> Result<SyncStats, String> {
+pub async fn sync_cache<R: Runtime>(app: AppHandle<R>, root: String, full: bool) -> Result<SyncStats, String> {
     let emitter = app.clone();
     with_synced_connection(app, move |conn| {
         index::sync(conn, &PathBuf::from(root), full, |stats| {
@@ -54,8 +59,8 @@ pub async fn sync_cache(app: AppHandle, root: String, full: bool) -> Result<Sync
 /// `force` generates them anew. Syncs first, so new files are included. Emits
 /// `cache-generate-progress`; `cancel_cache_job` stops it.
 #[tauri::command]
-pub async fn generate_cache(
-    app: AppHandle,
+pub async fn generate_cache<R: Runtime>(
+    app: AppHandle<R>,
     root: String,
     modes: Vec<FrameMode>,
     force: bool,
@@ -75,6 +80,7 @@ pub async fn generate_cache(
             })?;
         }
         let conn = state.connect()?;
+        let mut throttle = Throttle::new(PROGRESS_INTERVAL);
         jobs::generate(
             &conn,
             &root,
@@ -85,7 +91,9 @@ pub async fn generate_cache(
             &media::probe,
             &media::extract_frame,
             &mut |progress| {
-                let _ = app.emit("cache-generate-progress", progress);
+                if throttle.ready(progress.done) {
+                    let _ = app.emit("cache-generate-progress", progress.without_errors());
+                }
             },
         )
     })
@@ -104,7 +112,7 @@ pub fn cache_job_running(state: State<'_, CacheState>) -> bool {
 
 /// Size and contents of the cache, and with `root`, what is cached below it per mode.
 #[tauri::command]
-pub async fn cache_info(app: AppHandle, root: Option<String>, modes: Vec<FrameMode>) -> Result<CacheInfo, String> {
+pub async fn cache_info<R: Runtime>(app: AppHandle<R>, root: Option<String>, modes: Vec<FrameMode>) -> Result<CacheInfo, String> {
     blocking(move || {
         let state = app.state::<CacheState>();
         let conn = state.connect()?;
@@ -115,7 +123,7 @@ pub async fn cache_info(app: AppHandle, root: Option<String>, modes: Vec<FrameMo
 
 /// Deletes frames below `root` (or all), of `modes` (or all). Returns how many.
 #[tauri::command]
-pub async fn clear_cache(app: AppHandle, root: Option<String>, modes: Option<Vec<FrameMode>>) -> Result<usize, String> {
+pub async fn clear_cache<R: Runtime>(app: AppHandle<R>, root: Option<String>, modes: Option<Vec<FrameMode>>) -> Result<usize, String> {
     blocking(move || {
         let state = app.state::<CacheState>();
         let _job = state.jobs.start()?;
