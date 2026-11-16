@@ -2,6 +2,7 @@ import { effect, inject, Injectable, signal } from '@angular/core';
 import { FolderVideoEntry, FrameMode, VideoFrame, VideoInfo } from '../models/video-frame.model';
 import { FileSystemService } from './file-system.service';
 import { FileTreeService } from './file-tree.service';
+import { decodePath } from '../utils/encoded-name';
 
 const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'mpg', 'mpeg'];
 
@@ -101,7 +102,7 @@ export class PreviewService {
           ? filePath.substring(folderPath.length).replace(/^[/\\]/, '')
           : filePath;
 
-        const decodedRelativePath = this.decodeRelativePath(relativePath);
+        const decodedRelativePath = decodePath(relativePath);
 
         const entry: FolderVideoEntry = {
           filePath,
@@ -171,19 +172,6 @@ export class PreviewService {
     this.folderMode.set(false);
     this.folderEntries.set([]);
     this.folderPath.set(null);
-  }
-
-  private decodeRelativePath(relativePath: string): string {
-    return relativePath.split(/[/\\]/).map(segment => {
-      if (segment.startsWith('.dat_')) {
-        try {
-          return atob(segment.substring(5));
-        } catch {
-          return segment;
-        }
-      }
-      return segment;
-    }).join('/');
   }
 
   private yield(): Promise<void> {

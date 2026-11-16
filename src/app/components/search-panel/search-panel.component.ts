@@ -2,6 +2,7 @@ import { Component, ElementRef, inject, viewChild } from '@angular/core';
 import { SearchService } from '../../services/search.service';
 import { FileTreeService } from '../../services/file-tree.service';
 import { FileEntry } from '../../models/file-node.model';
+import { decodePath } from '../../utils/encoded-name';
 
 @Component({
   selector: 'app-search-panel',
@@ -37,13 +38,12 @@ export class SearchPanelComponent {
     this.searchService.selectResult(entry);
   }
 
+  /** The path below the open folder, with encoded names shown decoded. */
   getRelativePath(entry: FileEntry): string {
-    const root = this.fileTreeService.root();
-    if (!root) return entry.path;
-    const rootPath = root.entry.path;
-    if (entry.path.startsWith(rootPath)) {
-      return entry.path.slice(rootPath.length + 1);
+    const rootPath = this.fileTreeService.root()?.entry.path;
+    if (rootPath && entry.path.startsWith(rootPath)) {
+      return decodePath(entry.path.slice(rootPath.length).replace(/^[/\\]/, ''));
     }
-    return entry.path;
+    return decodePath(entry.path);
   }
 }
