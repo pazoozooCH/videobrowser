@@ -377,3 +377,63 @@ mod tests {
         assert!(!again.cancel_flag().load(Ordering::SeqCst));
     }
 }
+
+/// Against the real ffprobe and ffmpeg: `cargo test -- --ignored`.
+#[cfg(test)]
+mod ffmpeg_tests {
+    use super::*;
+    use crate::cache::index::{get_entry, path_str, rename_path, sync};
+    use crate::cache::test_support::temp_db;
+    use crate::commands::fs_commands::encode_node_impl;
+    use crate::media;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    #[ignore]
+    fn test_generate_survives_rename_and_encode() {
+        let tmp = TempDir::new().unwrap();
+        let video = tmp.path().join("clip.mp4");
+        let status = media::new_command("ffmpeg")
+            .args(["-v", "error", "-f", "lavfi", "-i", "testsrc=duration=130:size=160x120:rate=5"])
+            .arg(&video)
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let (_db, mut conn) = temp_db();
+        sync(&mut conn, tmp.path(), false, |_| {}).unwrap();
+        let cancel = AtomicBool::new(false);
+        let modes = [FrameMode::Fixed { count: 9 }, FrameMode::Interval { minutes: 1.0 }];
+        let result = generate(&conn, tmp.path(), &modes, false, 2, &cancel, &media::probe, &media::extract_frame, &mut |_| {}).unwrap();
+        assert_eq!(result.frames_done, 11, "{:?}", result.errors);
+        let video_id = get_entry(&conn, &path_str(&video)).unwrap().unwrap().video_id.unwrap();
+        let first = frames::cached_frames(&conn, video_id, "fixed:9").unwrap();
+        assert!(first.iter().all(|(_, _, jpeg)| jpeg.starts_with(&[0xFF, 0xD8])));
+
+        // Rename, then encode the folder it is in, the way the app's commands do.
+        let renamed = tmp.path().join("sub");
+        fs::create_dir(&renamed).unwrap();
+        let moved = renamed.join("clip.mp4");
+        fs::rename(&video, &moved).unwrap();
+        rename_path(&conn, &video, &moved).unwrap();
+        let mut renames = Vec::new();
+        encode_node_impl(path_str(&renamed), &mut renames).unwrap();
+        for (old, new) in &renames {
+            rename_path(&conn, old, new).unwrap();
+        }
+        let encoded_file = &renames.last().unwrap().1;
+        assert_eq!(get_entry(&conn, &path_str(encoded_file)).unwrap().unwrap().video_id, Some(video_id));
+
+        // Nothing left to do: every frame is found under the new path.
+        let probes = AtomicUsize::new(0);
+        let probe = |p: &Path| {
+            probes.fetch_add(1, Ordering::SeqCst);
+            media::probe(p)
+        };
+        let none = |_: &Path, _: f64| -> Result<Vec<u8>, String> { panic!("extracted although cached") };
+        let again = generate(&conn, tmp.path(), &modes, false, 2, &cancel, &probe, &none, &mut |_| {}).unwrap();
+        assert_eq!((again.frames_done, again.videos_failed), (0, 0));
+        assert_eq!(probes.load(Ordering::SeqCst), 0);
+    }
+}

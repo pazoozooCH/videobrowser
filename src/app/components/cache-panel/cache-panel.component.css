@@ -1,0 +1,128 @@
+.cache-panel {
+  border-bottom: 1px solid #ddd;
+  background-color: #fafafa;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.header .title {
+  font-weight: 600;
+}
+
+.summary,
+.muted {
+  color: #666;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.group-label {
+  width: 64px;
+  color: #666;
+}
+
+button {
+  padding: 3px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+button:hover:not(:disabled) {
+  background-color: #e8e8e8;
+}
+
+button:disabled {
+  color: #aaa;
+  cursor: default;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.coverage {
+  padding: 2px 8px 6px;
+  display: grid;
+  gap: 3px;
+}
+
+.coverage-row {
+  display: grid;
+  grid-template-columns: 90px 200px auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar {
+  height: 8px;
+  border-radius: 4px;
+  background: #e4e4e4;
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  background: #4a90d9;
+}
+
+.coverage-count {
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.failed,
+.error {
+  color: #c0392b;
+}
+
+.current {
+  color: #888;
+}
+
+.errors {
+  padding: 0 8px 4px;
+  color: #c0392b;
+  font-size: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ccc;
+  border-top-color: #4a90d9;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

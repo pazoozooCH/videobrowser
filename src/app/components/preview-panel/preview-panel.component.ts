@@ -1,7 +1,7 @@
 import { Component, DestroyRef, ElementRef, inject, NgZone, signal, viewChild, effect } from '@angular/core';
 import { PreviewService } from '../../services/preview.service';
 import { FileSystemService } from '../../services/file-system.service';
-import { FrameMode } from '../../models/video-frame.model';
+import { FRAME_MODE_PRESETS, FrameMode, sameMode } from '../../models/video-frame.model';
 
 const MIN_PANEL_WIDTH = 400;
 const MIN_TREE_WIDTH = 250;
@@ -26,12 +26,7 @@ export class PreviewPanelComponent {
   protected readonly hiddenEntries = signal(new Set<string>());
   private readonly entryHeights = new Map<string, number>();
 
-  readonly presets: { label: string; mode: FrameMode }[] = [
-    { label: '9 frames', mode: { type: 'fixed', count: 9 } },
-    { label: '18 frames', mode: { type: 'fixed', count: 18 } },
-    { label: 'Every 1 min', mode: { type: 'interval', minutes: 1 } },
-    { label: 'Every 5 min', mode: { type: 'interval', minutes: 5 } },
-  ];
+  readonly presets = FRAME_MODE_PRESETS;
 
   constructor() {
     this.destroyRef.onDestroy(() => this.cleanupObserver());
@@ -130,8 +125,7 @@ export class PreviewPanelComponent {
   }
 
   isActiveMode(mode: FrameMode): boolean {
-    const current = this.preview.mode();
-    return JSON.stringify(current) === JSON.stringify(mode);
+    return sameMode(this.preview.mode(), mode);
   }
 
   onResizeStart(event: MouseEvent): void {

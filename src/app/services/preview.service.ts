@@ -53,22 +53,13 @@ export class PreviewService {
     this.folderPath.set(null);
 
     try {
-      const videoInfo = await this.fs.getVideoInfo(path);
-      if (id !== this.generationId) return;
-
-      this.info.set(videoInfo);
-      const timestamps = this.calculateTimestamps(videoInfo.durationSecs, this.mode());
-      this.totalFrames.set(timestamps.length);
-
-      for (let i = 0; i < timestamps.length; i++) {
-        if (id !== this.generationId) return;
-
-        const frame = await this.fs.extractVideoFrame(path, timestamps[i], i);
-        if (id !== this.generationId) return;
-
-        this.frames.update(prev => [...prev, frame]);
-        await this.yield();
-      }
+      await this.loadVideo(path, id, {
+        info: (info, total) => {
+          this.info.set(info);
+          this.totalFrames.set(total);
+        },
+        frames: (frames) => this.frames.set(frames),
+      });
     } catch (e: any) {
       if (id !== this.generationId) return;
       this.error.set(typeof e === 'string' ? e : e.message ?? 'Unknown error');
@@ -125,24 +116,10 @@ export class PreviewService {
         const entryIndex = this.folderEntries().length - 1;
 
         try {
-          const videoInfo = await this.fs.getVideoInfo(filePath);
-          if (id !== this.generationId) return;
-
-          this.updateFolderEntry(entryIndex, { info: videoInfo });
-
-          const timestamps = this.calculateTimestamps(videoInfo.durationSecs, this.mode());
-
-          for (let i = 0; i < timestamps.length; i++) {
-            if (id !== this.generationId) return;
-
-            const frame = await this.fs.extractVideoFrame(filePath, timestamps[i], i);
-            if (id !== this.generationId) return;
-
-            this.updateFolderEntry(entryIndex, {
-              frames: [...this.folderEntries()[entryIndex].frames, frame],
-            });
-            await this.yield();
-          }
+          await this.loadVideo(filePath, id, {
+            info: (info) => this.updateFolderEntry(entryIndex, { info }),
+            frames: (frames) => this.updateFolderEntry(entryIndex, { frames }),
+          });
         } catch (e: any) {
           if (id !== this.generationId) return;
           this.updateFolderEntry(entryIndex, {
@@ -213,20 +190,30 @@ export class PreviewService {
     return new Promise(resolve => setTimeout(resolve, 0));
   }
 
-  private calculateTimestamps(duration: number, mode: FrameMode): number[] {
-    if (mode.type === 'fixed') {
-      if (mode.count === 0) return [];
-      const step = duration / (mode.count + 1);
-      return Array.from({ length: mode.count }, (_, i) => step * (i + 1));
-    } else {
-      const interval = mode.minutes * 60;
-      const timestamps: number[] = [];
-      let t = interval;
-      while (t < duration) {
-        timestamps.push(t);
-        t += interval;
-      }
-      return timestamps;
+  /**
+   * Shows what the cache has for a video at once, then extracts the missing frames one by one.
+   * Stops when a newer generation started.
+   */
+  private async loadVideo(
+    path: string,
+    id: number,
+    show: { info: (info: VideoInfo, total: number) => void; frames: (frames: VideoFrame[]) => void },
+  ): Promise<void> {
+    const mode = this.mode();
+    const preview = await this.fs.getPreview(path, mode);
+    if (id !== this.generationId) return;
+
+    show.info(preview.info, preview.timestamps.length);
+    let frames = preview.frames;
+    show.frames(frames);
+
+    for (const index of preview.missing) {
+      if (id !== this.generationId) return;
+      const frame = await this.fs.extractVideoFrame(path, mode, index);
+      if (id !== this.generationId) return;
+      frames = [...frames, frame].sort((a, b) => a.index - b.index);
+      show.frames(frames);
+      await this.yield();
     }
   }
 }
