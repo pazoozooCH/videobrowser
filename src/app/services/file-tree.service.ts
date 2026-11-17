@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { FileEntry, FileTreeNode } from '../models/file-node.model';
 import { FileSystemService } from './file-system.service';
+import { CacheService } from './cache.service';
 
 @Injectable({ providedIn: 'root' })
 export class FileTreeService {
@@ -17,6 +18,7 @@ export class FileTreeService {
   });
 
   private readonly fs = inject(FileSystemService);
+  private readonly cache = inject(CacheService);
 
   async openFolder(path: string): Promise<void> {
     const entries = await this.fs.readDirectory(path);
@@ -39,6 +41,9 @@ export class FileTreeService {
     };
 
     this.root.set(root);
+    // Brings the cache index up to date without holding up the tree: only directories whose
+    // mtime changed since the last sync are listed.
+    this.cache.syncInBackground(path);
   }
 
   async expandNode(node: FileTreeNode): Promise<void> {

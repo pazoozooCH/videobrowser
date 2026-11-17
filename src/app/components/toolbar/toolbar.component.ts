@@ -3,6 +3,7 @@ import { FileSystemService } from '../../services/file-system.service';
 import { FileTreeService } from '../../services/file-tree.service';
 import { SearchService } from '../../services/search.service';
 import { PreviewService } from '../../services/preview.service';
+import { CacheService } from '../../services/cache.service';
 
 @Component({
   selector: 'app-toolbar',
@@ -15,6 +16,7 @@ export class ToolbarComponent {
   private readonly fileTreeService = inject(FileTreeService);
   protected readonly searchService = inject(SearchService);
   protected readonly previewService = inject(PreviewService);
+  protected readonly cacheService = inject(CacheService);
 
   async openFolder(): Promise<void> {
     const path = await this.fsService.pickFolder();

@@ -1,0 +1,147 @@
+@if (cache.panelOpen()) {
+  <div class="cache-panel">
+    <div class="row header">
+      <span class="title">Cache</span>
+      @if (cache.info(); as info) {
+        <span class="summary">
+          {{ formatBytes(info.dbBytes) }} on disk · {{ info.videos.toLocaleString() }} videos ·
+          {{ info.frames.toLocaleString() }} frames ({{ formatBytes(info.frameBytes) }})
+          @if (info.orphanVideos > 0) {
+            · {{ info.orphanVideos.toLocaleString() }} no longer found (a full sync removes them)
+          }
+        </span>
+      }
+      <span class="spacer"></span>
+      <button (click)="cache.panelOpen.set(false)">Close</button>
+    </div>
+
+    @if (!rootPath()) {
+      <div class="row muted">Open a folder to sync or generate its cache.</div>
+    } @else {
+      @if (cache.info()?.root; as root) {
+        <div class="row muted">
+          This folder: {{ root.files.toLocaleString() }} files in
+          {{ root.dirs.toLocaleString() }} folders · {{ root.videos.toLocaleString() }} videos ·
+          {{ formatBytes(root.frameBytes) }} of frames · synced {{ formatAgo(root.lastQuickSync) }},
+          fully {{ formatAgo(root.lastFullSync) }}
+          @if (root.unprobeable > 0) {
+            · {{ root.unprobeable }} unreadable
+          }
+        </div>
+        <div class="coverage">
+          @for (coverage of root.modes; track coverage.modeKey) {
+            <div class="coverage-row">
+              <span class="coverage-label">{{ label(coverage) }}</span>
+              <span class="bar">
+                <span
+                  class="bar-fill"
+                  [style.width.%]="percent(coverage.complete, root.videos)"
+                ></span>
+              </span>
+              <span class="coverage-count">
+                {{ coverage.complete.toLocaleString() }} / {{ root.videos.toLocaleString() }}
+                @if (coverage.failed > 0) {
+                  <span class="failed">· {{ coverage.failed }} failed</span>
+                }
+              </span>
+            </div>
+          }
+        </div>
+      }
+
+      <div class="row">
+        <span class="group-label">Sync</span>
+        <button [disabled]="busy()" (click)="sync(false)" title="Lists only folders that changed">
+          Quick
+        </button>
+        <button
+          [disabled]="busy()"
+          (click)="sync(true)"
+          title="Compares every file and removes frames of videos that are gone"
+        >
+          Full
+        </button>
+      </div>
+
+      <div class="row">
+        <span class="group-label">Generate</span>
+        @for (preset of presets; track preset.label) {
+          <label class="check">
+            <input
+              type="checkbox"
+              [checked]="isSelected(preset.mode)"
+              (change)="toggleMode(preset.mode)"
+            />
+            {{ preset.label }}
+          </label>
+        }
+        <label class="check" title="Extract frames again, and retry videos that failed">
+          <input type="checkbox" [checked]="force()" (change)="force.set(!force())" />
+          regenerate existing
+        </label>
+        @if (cache.generating()) {
+          <button (click)="cache.cancel()">Cancel</button>
+        } @else {
+          <button [disabled]="busy() || selectedModes().length === 0" (click)="generate()">
+            Generate all
+          </button>
+        }
+      </div>
+
+      <div class="row">
+        <span class="group-label">Clear</span>
+        <button [disabled]="busy()" (click)="clear(false)">This folder</button>
+        <button [disabled]="busy()" (click)="clear(true)">Everything</button>
+      </div>
+    }
+
+    @if (cache.syncing()) {
+      <div class="status">
+        <span class="spinner"></span>
+        Syncing… {{ (cache.syncProgress()?.dirs ?? 0).toLocaleString() }} folders checked
+      </div>
+    } @else if (cache.lastSync(); as s) {
+      <div class="status muted">
+        Last sync: {{ s.dirs.toLocaleString() }} folders checked,
+        {{ s.listedDirs.toLocaleString() }} listed · {{ s.added }} added, {{ s.changed }} changed,
+        {{ s.removed }} removed
+        @if (s.prunedVideos > 0) {
+          · frames of {{ s.prunedVideos }} videos removed
+        }
+      </div>
+    }
+
+    @if (cache.generateProgress(); as g) {
+      <div class="status">
+        @if (!g.done) {
+          <span class="spinner"></span>
+        }
+        <span>
+          {{ g.done ? (g.cancelled ? 'Cancelled' : 'Done') : 'Generating' }}:
+          {{ g.videosDone.toLocaleString() }} / {{ g.videosTotal.toLocaleString() }} videos ·
+          {{ g.framesDone.toLocaleString() }} frames
+          @if (g.videosFailed + g.framesFailed > 0) {
+            <span class="failed"
+              >· {{ g.videosFailed }} videos and {{ g.framesFailed }} frames failed</span
+            >
+          }
+          @if (g.current) {
+            <span class="current">· {{ g.current }}</span>
+          }
+        </span>
+      </div>
+      @if (g.errors.length > 0) {
+        <details class="errors">
+          <summary>{{ g.errors.length }} errors</summary>
+          @for (error of g.errors; track $index) {
+            <div>{{ error }}</div>
+          }
+        </details>
+      }
+    }
+
+    @if (cache.error(); as error) {
+      <div class="status error">{{ error }}</div>
+    }
+  </div>
+}

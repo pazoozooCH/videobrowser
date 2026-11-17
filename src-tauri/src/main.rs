@@ -3,10 +3,12 @@
 mod cache;
 mod commands;
 mod encoding;
+mod media;
 mod models;
 
 use tauri::Manager;
 
+use commands::cache_commands;
 use commands::fs_commands;
 use commands::video_commands;
 
@@ -18,7 +20,7 @@ fn main() {
                 .path()
                 .app_data_dir()
                 .expect("failed to resolve app data dir");
-            let cache_state = cache::init_db(&data_dir)
+            let cache_state = cache::init(&data_dir)
                 .expect("failed to initialize frame cache");
             app.manage(cache_state);
             Ok(())
@@ -40,6 +42,13 @@ fn main() {
             video_commands::list_video_files,
             video_commands::get_video_info,
             video_commands::extract_video_frame,
+            video_commands::get_preview,
+            cache_commands::sync_cache,
+            cache_commands::generate_cache,
+            cache_commands::cancel_cache_job,
+            cache_commands::cache_job_running,
+            cache_commands::cache_info,
+            cache_commands::clear_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

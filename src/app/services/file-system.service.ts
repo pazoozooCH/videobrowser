@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { FileEntry } from '../models/file-node.model';
-import { VideoFrame, VideoInfo } from '../models/video-frame.model';
+import { FrameMode, Preview, VideoFrame, VideoInfo } from '../models/video-frame.model';
+import { CacheInfo, GenerateProgress, SyncStats } from '../models/cache.model';
 
 @Injectable({ providedIn: 'root' })
 export class FileSystemService {
@@ -62,8 +63,36 @@ export class FileSystemService {
     return invoke<VideoInfo>('get_video_info', { path });
   }
 
-  async extractVideoFrame(path: string, timestampSecs: number, index: number): Promise<VideoFrame> {
-    return invoke<VideoFrame>('extract_video_frame', { path, timestampSecs, index });
+  async getPreview(path: string, mode: FrameMode): Promise<Preview> {
+    return invoke<Preview>('get_preview', { path, mode });
+  }
+
+  async extractVideoFrame(path: string, mode: FrameMode, index: number): Promise<VideoFrame> {
+    return invoke<VideoFrame>('extract_video_frame', { path, mode, index });
+  }
+
+  async syncCache(root: string, full: boolean): Promise<SyncStats> {
+    return invoke<SyncStats>('sync_cache', { root, full });
+  }
+
+  async generateCache(root: string, modes: FrameMode[], force: boolean): Promise<GenerateProgress> {
+    return invoke<GenerateProgress>('generate_cache', { root, modes, force });
+  }
+
+  async cancelCacheJob(): Promise<void> {
+    return invoke<void>('cancel_cache_job');
+  }
+
+  async cacheJobRunning(): Promise<boolean> {
+    return invoke<boolean>('cache_job_running');
+  }
+
+  async cacheInfo(root: string | null, modes: FrameMode[]): Promise<CacheInfo> {
+    return invoke<CacheInfo>('cache_info', { root, modes });
+  }
+
+  async clearCache(root: string | null, modes: FrameMode[] | null): Promise<number> {
+    return invoke<number>('clear_cache', { root, modes });
   }
 
   async pickFolder(): Promise<string | null> {

@@ -1,11 +1,18 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use tauri::Emitter;
+use rusqlite::Connection;
+use tauri::{Emitter, State};
 
+use crate::cache::index::{self, EntryRow, EXCLUDED_FILES};
+use crate::cache::CacheState;
+use crate::commands::cache_commands::with_synced_connection;
 use crate::encoding::encoded_dir::{can_encode, encode_name, try_decode_name};
 use crate::models::file_entry::FileEntry;
+
+/// Renames made by an operation, in the order made: (old path, new path).
+pub type Renames = Vec<(PathBuf, PathBuf)>;
 
 #[tauri::command]
 pub fn get_cli_path() -> Option<String> {
@@ -13,8 +20,6 @@ pub fn get_cli_path() -> Option<String> {
         .nth(1)
         .filter(|arg| Path::new(arg).is_dir())
 }
-
-const EXCLUDED_FILES: &[&str] = &[".gitignore"];
 
 #[tauri::command]
 pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
@@ -64,8 +69,7 @@ pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(file_entries)
 }
 
-#[tauri::command]
-pub fn encode_node(path: String) -> Result<FileEntry, String> {
+pub fn encode_node_impl(path: String, renames: &mut Renames) -> Result<FileEntry, String> {
     let node_path = Path::new(&path);
     if !node_path.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -84,6 +88,7 @@ pub fn encode_node(path: String) -> Result<FileEntry, String> {
         let parent = node_path.parent().ok_or("No parent directory")?;
         let new_path = parent.join(&encoded_name);
         fs::rename(node_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
+        renames.push((node_path.to_path_buf(), new_path.clone()));
         new_path
     } else {
         node_path.to_path_buf()
@@ -91,13 +96,13 @@ pub fn encode_node(path: String) -> Result<FileEntry, String> {
 
     // Recursively encode children if directory
     if current_path.is_dir() {
-        encode_children_recursive(&current_path)?;
+        encode_children_recursive(&current_path, renames)?;
     }
 
     build_file_entry(&current_path)
 }
 
-fn encode_children_recursive(dir: &Path) -> Result<(), String> {
+fn encode_children_recursive(dir: &Path, renames: &mut Renames) -> Result<(), String> {
     let entries = fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
@@ -108,19 +113,19 @@ fn encode_children_recursive(dir: &Path) -> Result<(), String> {
             let encoded_name = encode_name(&name);
             let new_path = dir.join(&encoded_name);
             fs::rename(&entry_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
+            renames.push((entry_path.clone(), new_path.clone()));
 
             if new_path.is_dir() {
-                encode_children_recursive(&new_path)?;
+                encode_children_recursive(&new_path, renames)?;
             }
         } else if entry_path.is_dir() {
-            encode_children_recursive(&entry_path)?;
+            encode_children_recursive(&entry_path, renames)?;
         }
     }
     Ok(())
 }
 
-#[tauri::command]
-pub fn decode_node(path: String) -> Result<FileEntry, String> {
+pub fn decode_node_impl(path: String, renames: &mut Renames) -> Result<FileEntry, String> {
     let node_path = Path::new(&path);
     if !node_path.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -139,6 +144,7 @@ pub fn decode_node(path: String) -> Result<FileEntry, String> {
         let parent = node_path.parent().ok_or("No parent directory")?;
         let new_path = parent.join(&decoded_name);
         fs::rename(node_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
+        renames.push((node_path.to_path_buf(), new_path.clone()));
         new_path
     } else {
         node_path.to_path_buf()
@@ -146,13 +152,13 @@ pub fn decode_node(path: String) -> Result<FileEntry, String> {
 
     // Recursively decode children if directory
     if current_path.is_dir() {
-        decode_children_recursive(&current_path)?;
+        decode_children_recursive(&current_path, renames)?;
     }
 
     build_file_entry(&current_path)
 }
 
-fn decode_children_recursive(dir: &Path) -> Result<(), String> {
+fn decode_children_recursive(dir: &Path, renames: &mut Renames) -> Result<(), String> {
     let entries = fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
@@ -162,12 +168,13 @@ fn decode_children_recursive(dir: &Path) -> Result<(), String> {
         if let Some(decoded_name) = try_decode_name(&name) {
             let new_path = dir.join(&decoded_name);
             fs::rename(&entry_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
+            renames.push((entry_path.clone(), new_path.clone()));
 
             if new_path.is_dir() {
-                decode_children_recursive(&new_path)?;
+                decode_children_recursive(&new_path, renames)?;
             }
         } else if entry_path.is_dir() {
-            decode_children_recursive(&entry_path)?;
+            decode_children_recursive(&entry_path, renames)?;
         }
     }
     Ok(())
@@ -191,8 +198,7 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to copy to clipboard: {}", e))
 }
 
-#[tauri::command]
-pub fn rename_node(path: String, new_name: String, encode: bool) -> Result<FileEntry, String> {
+pub fn rename_node_impl(path: String, new_name: String, encode: bool) -> Result<FileEntry, String> {
     let node_path = Path::new(&path);
     if !node_path.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -212,8 +218,7 @@ pub fn rename_node(path: String, new_name: String, encode: bool) -> Result<FileE
     build_file_entry(&new_path)
 }
 
-#[tauri::command]
-pub fn delete_node(path: String) -> Result<(), String> {
+pub fn delete_node_impl(path: String) -> Result<(), String> {
     let node_path = Path::new(&path);
     if !node_path.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -238,8 +243,7 @@ pub fn count_children(path: String) -> Result<usize, String> {
     Ok(count)
 }
 
-#[tauri::command]
-pub fn move_node(source: String, target_dir: String) -> Result<FileEntry, String> {
+pub fn move_node_impl(source: String, target_dir: String) -> Result<FileEntry, String> {
     let source_path = Path::new(&source);
     let target_path = Path::new(&target_dir);
 
@@ -346,109 +350,118 @@ struct SearchProgress {
     done: bool,
 }
 
-// Emit a progress event at most every this many scanned entries, to avoid
-// flooding the frontend on large trees.
-const PROGRESS_EMIT_INTERVAL: usize = 200;
-
-// Async so the (potentially long) recursive walk runs off the main thread.
-// A synchronous command would block the main GTK/event loop on Linux, freezing
-// the webview so the spinner can't animate and progress events aren't delivered
-// until the command returns.
+// Async so that the sync before the query runs off the main thread: a synchronous command
+// would block the main GTK/event loop on Linux and freeze the webview.
 #[tauri::command]
 pub async fn search_files(
+    app: tauri::AppHandle,
     window: tauri::Window,
     path: String,
     pattern: String,
 ) -> Result<Vec<FileEntry>, String> {
-    search_files_impl(&path, &pattern, |scanned, matches, done| {
-        let _ = window.emit(
-            "search-progress",
-            SearchProgress {
-                scanned,
-                matches,
-                done,
-            },
-        );
+    with_synced_connection(app, move |conn| {
+        search_files_impl(conn, &path, &pattern, |scanned, matches, done| {
+            let _ = window.emit("search-progress", SearchProgress { scanned, matches, done });
+        })
     })
+    .await
 }
 
-/// Core search: walks `path` recursively for names containing `pattern`,
-/// invoking `on_progress(scanned, matches, done)` periodically during the walk
-/// and once with `done = true` at the end. Decoupled from Tauri for testability.
+/// Search: a quick sync brings the index of `path` up to date, which costs about one `stat` per
+/// directory, and the index answers. A name matches when it contains every whitespace-separated
+/// term of `pattern`, in any order, so "my file" matches "my test file". `on_progress(scanned,
+/// matches, done)` is called during the sync and once with `done = true` at the end.
 fn search_files_impl(
+    conn: &mut Connection,
     path: &str,
     pattern: &str,
     mut on_progress: impl FnMut(usize, usize, bool),
 ) -> Result<Vec<FileEntry>, String> {
-    let dir_path = Path::new(path);
-    if !dir_path.is_dir() {
-        return Err(format!("Not a directory: {}", path));
-    }
-
-    // Split the query into whitespace-separated terms. A name matches when it
-    // contains every term (order-independent substring match), so "my file"
-    // matches "my test file".
-    let terms: Vec<String> = pattern
-        .to_lowercase()
-        .split_whitespace()
-        .map(|t| t.to_string())
+    let root = Path::new(path);
+    let stats = index::sync(conn, root, false, |s| {
+        if !s.done {
+            on_progress(s.entries, 0, false)
+        }
+    })?;
+    let results: Vec<FileEntry> = index::search(conn, root, pattern)?
+        .iter()
+        .map(entry_from_row)
         .collect();
-    let mut results = Vec::new();
-    let mut scanned: usize = 0;
-    let mut last_emit: usize = 0;
-    search_recursive(
-        dir_path,
-        &terms,
-        &mut results,
-        &mut scanned,
-        &mut last_emit,
-        &mut on_progress,
-    )?;
-    results.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-
-    // Final event so the UI shows the exact totals when finished.
-    on_progress(scanned, results.len(), true);
-
+    on_progress(stats.entries, results.len(), true);
     Ok(results)
 }
 
-fn search_recursive(
-    dir: &Path,
-    terms: &[String],
-    results: &mut Vec<FileEntry>,
-    scanned: &mut usize,
-    last_emit: &mut usize,
-    on_progress: &mut impl FnMut(usize, usize, bool),
-) -> Result<(), String> {
-    let entries = fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
-
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-        let file_name = entry.file_name().to_string_lossy().to_string();
-
-        if EXCLUDED_FILES.contains(&file_name.as_str()) {
-            continue;
-        }
-
-        let entry_path = entry.path();
-        let display_name = try_decode_name(&file_name).unwrap_or_else(|| file_name.clone());
-
-        let name_lower = display_name.to_lowercase();
-        if !terms.is_empty() && terms.iter().all(|t| name_lower.contains(t.as_str())) {
-            results.push(build_file_entry(&entry_path)?);
-        }
-
-        *scanned += 1;
-        if *scanned - *last_emit >= PROGRESS_EMIT_INTERVAL {
-            *last_emit = *scanned;
-            on_progress(*scanned, results.len(), false);
-        }
-
-        if entry_path.is_dir() {
-            search_recursive(&entry_path, terms, results, scanned, last_emit, on_progress)?;
-        }
+pub fn entry_from_row(row: &EntryRow) -> FileEntry {
+    let decoded_name = try_decode_name(&row.physical_name);
+    FileEntry {
+        path: row.path.clone(),
+        name: decoded_name.clone().unwrap_or_else(|| row.physical_name.clone()),
+        physical_name: row.physical_name.clone(),
+        is_directory: row.is_dir,
+        is_encoded: decoded_name.is_some(),
+        decoded_name,
+        has_children: row.is_dir,
+        file_size: row.size as u64,
     }
+}
 
+// The commands that change the file system, and keep the cache index in step. Should the index
+// update fail, the changed directories' mtimes make the next sync catch up.
+
+fn follow_in_index(state: &CacheState, update: impl FnOnce(&Connection) -> Result<(), String>) {
+    let conn = state.conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Err(e) = update(&conn) {
+        eprintln!("Cache index not updated, the next sync will catch up: {}", e);
+    }
+}
+
+fn follow_renames(state: &CacheState, renames: &Renames) {
+    follow_in_index(state, |conn| {
+        renames
+            .iter()
+            .try_for_each(|(old, new)| index::rename_path(conn, old, new))
+    });
+}
+
+#[tauri::command]
+pub fn encode_node(state: State<'_, CacheState>, path: String) -> Result<FileEntry, String> {
+    let mut renames = Vec::new();
+    let result = encode_node_impl(path, &mut renames);
+    follow_renames(&state, &renames);
+    result
+}
+
+#[tauri::command]
+pub fn decode_node(state: State<'_, CacheState>, path: String) -> Result<FileEntry, String> {
+    let mut renames = Vec::new();
+    let result = decode_node_impl(path, &mut renames);
+    follow_renames(&state, &renames);
+    result
+}
+
+#[tauri::command]
+pub fn rename_node(
+    state: State<'_, CacheState>,
+    path: String,
+    new_name: String,
+    encode: bool,
+) -> Result<FileEntry, String> {
+    let entry = rename_node_impl(path.clone(), new_name, encode)?;
+    follow_renames(&state, &vec![(PathBuf::from(path), PathBuf::from(&entry.path))]);
+    Ok(entry)
+}
+
+#[tauri::command]
+pub fn move_node(state: State<'_, CacheState>, source: String, target_dir: String) -> Result<FileEntry, String> {
+    let entry = move_node_impl(source.clone(), target_dir)?;
+    follow_renames(&state, &vec![(PathBuf::from(source), PathBuf::from(&entry.path))]);
+    Ok(entry)
+}
+
+#[tauri::command]
+pub fn delete_node(state: State<'_, CacheState>, path: String) -> Result<(), String> {
+    delete_node_impl(path.clone())?;
+    follow_in_index(&state, |conn| index::remove_path(conn, Path::new(&path)));
     Ok(())
 }
 
@@ -587,7 +600,7 @@ mod tests {
         let file = tmp.path().join("hello.txt");
         fs::write(&file, "content").unwrap();
 
-        let entry = encode_node(file.to_string_lossy().to_string()).unwrap();
+        let entry = encode_node_impl(file.to_string_lossy().to_string(), &mut Vec::new()).unwrap();
         assert!(entry.is_encoded);
         assert_eq!(entry.name, "hello.txt");
         assert!(entry.physical_name.starts_with(".dat_"));
@@ -603,7 +616,7 @@ mod tests {
         let file = tmp.path().join(".dat_VGVzdA==");
         fs::write(&file, "content").unwrap();
 
-        let entry = encode_node(file.to_string_lossy().to_string()).unwrap();
+        let entry = encode_node_impl(file.to_string_lossy().to_string(), &mut Vec::new()).unwrap();
         // Should remain unchanged
         assert_eq!(entry.physical_name, ".dat_VGVzdA==");
         assert!(file.exists());
@@ -618,7 +631,7 @@ mod tests {
         fs::create_dir(dir.join("subdir")).unwrap();
         fs::write(dir.join("subdir").join("nested.txt"), "").unwrap();
 
-        let entry = encode_node(dir.to_string_lossy().to_string()).unwrap();
+        let entry = encode_node_impl(dir.to_string_lossy().to_string(), &mut Vec::new()).unwrap();
         assert!(entry.is_encoded);
 
         // Children should also be encoded
@@ -638,7 +651,7 @@ mod tests {
         let file = tmp.path().join(".dat_VGVzdA==");
         fs::write(&file, "content").unwrap();
 
-        let entry = decode_node(file.to_string_lossy().to_string()).unwrap();
+        let entry = decode_node_impl(file.to_string_lossy().to_string(), &mut Vec::new()).unwrap();
         assert!(!entry.is_encoded);
         assert_eq!(entry.name, "Test");
         assert_eq!(entry.physical_name, "Test");
@@ -653,7 +666,7 @@ mod tests {
         let file = tmp.path().join("plain.txt");
         fs::write(&file, "content").unwrap();
 
-        let entry = decode_node(file.to_string_lossy().to_string()).unwrap();
+        let entry = decode_node_impl(file.to_string_lossy().to_string(), &mut Vec::new()).unwrap();
         assert_eq!(entry.physical_name, "plain.txt");
         assert!(file.exists());
     }
@@ -665,7 +678,7 @@ mod tests {
         fs::create_dir(&dir).unwrap();
         fs::write(dir.join(".dat_Y2hpbGQudHh0"), "").unwrap();
 
-        let entry = decode_node(dir.to_string_lossy().to_string()).unwrap();
+        let entry = decode_node_impl(dir.to_string_lossy().to_string(), &mut Vec::new()).unwrap();
         assert!(!entry.is_encoded);
         assert_eq!(entry.name, "parent");
 
@@ -687,11 +700,11 @@ mod tests {
         fs::write(dir.join("file.txt"), "hello").unwrap();
 
         // Encode
-        let encoded = encode_node(dir.to_string_lossy().to_string()).unwrap();
+        let encoded = encode_node_impl(dir.to_string_lossy().to_string(), &mut Vec::new()).unwrap();
         assert!(encoded.is_encoded);
 
         // Decode
-        let decoded = decode_node(encoded.path.clone()).unwrap();
+        let decoded = decode_node_impl(encoded.path.clone(), &mut Vec::new()).unwrap();
         assert!(!decoded.is_encoded);
         assert_eq!(decoded.name, "my_folder");
 
@@ -708,7 +721,7 @@ mod tests {
         let file = tmp.path().join("old.txt");
         fs::write(&file, "content").unwrap();
 
-        let entry = rename_node(
+        let entry = rename_node_impl(
             file.to_string_lossy().to_string(),
             "new.txt".to_string(),
             false,
@@ -726,7 +739,7 @@ mod tests {
         let file = tmp.path().join("old.txt");
         fs::write(&file, "content").unwrap();
 
-        let entry = rename_node(
+        let entry = rename_node_impl(
             file.to_string_lossy().to_string(),
             "new.txt".to_string(),
             true,
@@ -745,7 +758,7 @@ mod tests {
         let file = tmp.path().join("delete_me.txt");
         fs::write(&file, "").unwrap();
 
-        delete_node(file.to_string_lossy().to_string()).unwrap();
+        delete_node_impl(file.to_string_lossy().to_string()).unwrap();
         assert!(!file.exists());
     }
 
@@ -756,13 +769,13 @@ mod tests {
         fs::create_dir(&dir).unwrap();
         fs::write(dir.join("child.txt"), "").unwrap();
 
-        delete_node(dir.to_string_lossy().to_string()).unwrap();
+        delete_node_impl(dir.to_string_lossy().to_string()).unwrap();
         assert!(!dir.exists());
     }
 
     #[test]
     fn test_delete_nonexistent() {
-        let result = delete_node("/nonexistent/path/file.txt".to_string());
+        let result = delete_node_impl("/nonexistent/path/file.txt".to_string());
         assert!(result.is_err());
     }
 
@@ -806,7 +819,7 @@ mod tests {
         let target = tmp.path().join("target_dir");
         fs::create_dir(&target).unwrap();
 
-        let entry = move_node(
+        let entry = move_node_impl(
             file.to_string_lossy().to_string(),
             target.to_string_lossy().to_string(),
         )
@@ -826,7 +839,7 @@ mod tests {
         let target = tmp.path().join("target_dir");
         fs::create_dir(&target).unwrap();
 
-        move_node(
+        move_node_impl(
             dir.to_string_lossy().to_string(),
             target.to_string_lossy().to_string(),
         )
@@ -846,7 +859,7 @@ mod tests {
         fs::create_dir(&target).unwrap();
         fs::write(target.join("source.txt"), "").unwrap();
 
-        let result = move_node(
+        let result = move_node_impl(
             file.to_string_lossy().to_string(),
             target.to_string_lossy().to_string(),
         );
@@ -857,6 +870,35 @@ mod tests {
 
     // --- search_files ---
 
+    fn search(root: &str, pattern: &str, progress: impl FnMut(usize, usize, bool)) -> Result<Vec<FileEntry>, String> {
+        let (_db, mut conn) = crate::cache::test_support::temp_db();
+        search_files_impl(&mut conn, root, pattern, progress)
+    }
+
+    #[test]
+    fn test_search_files_reports_done_with_totals() {
+        let tmp = create_test_dir();
+        fs::write(tmp.path().join("a.txt"), "").unwrap();
+        fs::write(tmp.path().join("b.txt"), "").unwrap();
+        let mut last = None;
+        search(&tmp.path().to_string_lossy(), "a", |s, m, d| last = Some((s, m, d))).unwrap();
+        assert_eq!(last, Some((2, 1, true)));
+    }
+
+    #[test]
+    fn test_search_files_sees_changes_since_last_search() {
+        let tmp = create_test_dir();
+        let root = tmp.path().to_string_lossy().to_string();
+        let (_db, mut conn) = crate::cache::test_support::temp_db();
+        assert!(search_files_impl(&mut conn, &root, "late", |_, _, _| {}).unwrap().is_empty());
+        let sub = tmp.path().join("sub");
+        fs::create_dir(&sub).unwrap();
+        fs::write(sub.join("late.txt"), "").unwrap();
+        let found = search_files_impl(&mut conn, &root, "late", |_, _, _| {}).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].path, sub.join("late.txt").to_string_lossy());
+    }
+
     #[test]
     fn test_search_files_basic() {
         let tmp = create_test_dir();
@@ -866,7 +908,7 @@ mod tests {
         fs::create_dir(&sub).unwrap();
         fs::write(sub.join("hello_nested.txt"), "").unwrap();
 
-        let results = search_files_impl(&tmp.path().to_string_lossy(), "hello", |_, _, _| {}).unwrap();
+        let results = search(&tmp.path().to_string_lossy(), "hello", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 2);
         assert!(results.iter().all(|r| r.name.to_lowercase().contains("hello")));
     }
@@ -877,7 +919,7 @@ mod tests {
         fs::write(tmp.path().join("Hello.TXT"), "").unwrap();
         fs::write(tmp.path().join("other.txt"), "").unwrap();
 
-        let results = search_files_impl(&tmp.path().to_string_lossy(), "hello", |_, _, _| {}).unwrap();
+        let results = search(&tmp.path().to_string_lossy(), "hello", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Hello.TXT");
     }
@@ -889,7 +931,7 @@ mod tests {
         fs::write(tmp.path().join(".dat_VGVzdA=="), "").unwrap();
         fs::write(tmp.path().join("other.txt"), "").unwrap();
 
-        let results = search_files_impl(&tmp.path().to_string_lossy(), "test", |_, _, _| {}).unwrap();
+        let results = search(&tmp.path().to_string_lossy(), "test", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Test");
     }
@@ -899,7 +941,7 @@ mod tests {
         let tmp = create_test_dir();
         fs::write(tmp.path().join(".gitignore"), "").unwrap();
 
-        let results = search_files_impl(&tmp.path().to_string_lossy(), "gitignore", |_, _, _| {}).unwrap();
+        let results = search(&tmp.path().to_string_lossy(), "gitignore", |_, _, _| {}).unwrap();
         assert_eq!(results.len(), 0);
     }
 
@@ -912,13 +954,13 @@ mod tests {
         let root = tmp.path().to_string_lossy();
         // All of these term sets should match "my test file.txt".
         for query in ["my test", "my file", "my fi", "my le", "test my", "file my test"] {
-            let results = search_files_impl(&root, query, |_, _, _| {}).unwrap();
+            let results = search(&root, query, |_, _, _| {}).unwrap();
             assert_eq!(results.len(), 1, "query {:?} should match", query);
             assert_eq!(results[0].name, "my test file.txt", "query {:?}", query);
         }
 
         // A term not present anywhere excludes the file.
-        let none = search_files_impl(&root, "my missing", |_, _, _| {}).unwrap();
+        let none = search(&root, "my missing", |_, _, _| {}).unwrap();
         assert_eq!(none.len(), 0);
     }
 
